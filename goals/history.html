@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>历史记录 · TaskPilot</title>
+<link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css">
+<link rel="stylesheet" href="common.css">
+</head>
+<body>
+<div id="app">
+  <div class="app-layout">
+    <aside class="app-sidebar">
+      <div class="sidebar-logo"><div class="logo-icon">T</div><span class="logo-text">TaskPilot</span></div>
+      <nav class="sidebar-nav">
+        <a class="sidebar-nav-item" href="dashboard.html"><el-icon><HomeFilled/></el-icon> 工作台</a>
+        <a class="sidebar-nav-item" href="parse-new.html"><el-icon><Upload/></el-icon> 新建解析</a>
+        <a class="sidebar-nav-item" href="projects.html"><el-icon><Folder/></el-icon> 项目管理</a>
+        <a class="sidebar-nav-item active" href="history.html"><el-icon><Clock/></el-icon> 历史记录</a>
+        <a class="sidebar-nav-item" href="profile.html"><el-icon><User/></el-icon> 个人中心</a>
+      </nav>
+      <div class="sidebar-footer"><a class="sidebar-nav-item" href="index.html"><el-icon><Back/></el-icon> 返回预览总览</a></div>
+    </aside>
+
+    <div class="app-main">
+      <header class="app-header">
+        <span class="header-title">历史记录</span>
+        <div class="header-right">
+          <el-avatar :size="34" style="background:linear-gradient(135deg,#38a5ff,#1f7fd0);">z</el-avatar>
+          <span style="font-size:14px;">zmk</span>
+        </div>
+      </header>
+
+      <main class="app-content">
+        <el-tabs v-model="activeTab" class="mb-20">
+          <el-tab-pane label="解析记录" name="parse">
+            <div class="tp-card" style="padding:0;">
+              <el-table :data="parseHistory" style="width:100%;">
+                <el-table-column label="文档标题" min-width="260">
+                  <template #default="{row}">
+                    <a href="parse-detail.html" style="font-weight:500;">{{row.title}}</a>
+                  </template>
+                </el-table-column>
+                <el-table-column label="来源" width="80">
+                  <template #default="{row}">
+                    <el-tag size="small" :type="row.source==='pdf'?'':'info'" effect="plain">{{row.source==='pdf'?'PDF':'文本'}}</el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column label="解析状态" width="100">
+                  <template #default="{row}">
+                    <el-tag size="small" :type="statusType(row.status)">{{statusText(row.status)}}</el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column label="已生成项目" width="110">
+                  <template #default="{row}">
+                    <el-tag v-if="row.hasProject" size="small" type="success" effect="plain">已生成</el-tag>
+                    <span v-else style="font-size:13px;color:var(--color-text-soft);">-</span>
+                  </template>
+                </el-table-column>
+                <el-table-column label="解析时间" width="170" prop="time"></el-table-column>
+                <el-table-column label="操作" width="150" fixed="right">
+                  <template #default="{row}">
+                    <el-button text type="primary" size="small" @click="location.href='parse-detail.html'">查看</el-button>
+                    <el-button text type="danger" size="small" @click="$message.warning('确认删除？')">删除</el-button>
+                  </template>
+                </el-table-column>
+              </el-table>
+            </div>
+            <div style="display:flex;justify-content:center;margin-top:20px;">
+              <el-pagination layout="prev, pager, next" :total="30" :page-size="10"></el-pagination>
+            </div>
+          </el-tab-pane>
+
+          <el-tab-pane label="项目记录" name="project">
+            <div class="tp-card" style="padding:0;">
+              <el-table :data="projectHistory" style="width:100%;">
+                <el-table-column label="项目名称" min-width="260">
+                  <template #default="{row}">
+                    <a href="project-detail.html" style="font-weight:500;">{{row.name}}</a>
+                  </template>
+                </el-table-column>
+                <el-table-column label="状态" width="100">
+                  <template #default="{row}">
+                    <el-tag size="small" :type="row.status==='active'?'success':'info'" effect="plain">{{row.status==='active'?'进行中':'已归档'}}</el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column label="任务进度" width="140">
+                  <template #default="{row}">
+                    <el-progress :percentage="Math.round(row.done/row.total*100)" :stroke-width="6"></el-progress>
+                  </template>
+                </el-table-column>
+                <el-table-column label="截止时间" width="120" prop="deadline"></el-table-column>
+                <el-table-column label="创建时间" width="170" prop="time"></el-table-column>
+                <el-table-column label="操作" width="150" fixed="right">
+                  <template #default="{row}">
+                    <el-button text type="primary" size="small" @click="location.href='project-detail.html'">查看</el-button>
+                    <el-button text type="danger" size="small" @click="$message.warning('确认删除？')">删除</el-button>
+                  </template>
+                </el-table-column>
+              </el-table>
+            </div>
+            <div style="display:flex;justify-content:center;margin-top:20px;">
+              <el-pagination layout="prev, pager, next" :total="20" :page-size="10"></el-pagination>
+            </div>
+          </el-tab-pane>
+        </el-tabs>
+      </main>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+<script src="https://unpkg.com/element-plus"></script>
+<script src="https://unpkg.com/@element-plus/icons-vue"></script>
+<script>
+const { createApp, ref, reactive } = Vue;
+
+const App = {
+  setup() {
+    const activeTab = ref('parse');
+    const parseHistory = reactive([
+      { title: '2026年大学生创新创业大赛报名通知', source: 'pdf', status: 'success', hasProject: true, time: '2026-07-24 14:32' },
+      { title: '软件工程课程设计要求', source: 'text', status: 'success', hasProject: true, time: '2026-07-23 20:15' },
+      { title: '毕业设计开题报告模板说明', source: 'pdf', status: 'success', hasProject: true, time: '2026-07-23 16:08' },
+      { title: '暑期实习项目需求文档', source: 'text', status: 'failed', hasProject: false, time: '2026-07-22 10:20' },
+      { title: '数据结构实验报告要求', source: 'text', status: 'success', hasProject: true, time: '2026-07-21 09:45' },
+      { title: '操作系统课程考核说明', source: 'pdf', status: 'success', hasProject: false, time: '2026-07-20 14:10' }
+    ]);
+    const projectHistory = reactive([
+      { name: '创新创业比赛报名项目', status: 'active', done: 2, total: 6, deadline: '7月30日', time: '2026-07-24 14:40' },
+      { name: '软件工程课程设计', status: 'active', done: 5, total: 8, deadline: '8月05日', time: '2026-07-23 20:30' },
+      { name: '毕业设计开题准备', status: 'active', done: 1, total: 5, deadline: '8月10日', time: '2026-07-23 16:15' },
+      { name: '数据结构实验报告', status: 'archived', done: 3, total: 3, deadline: '-', time: '2026-07-21 09:50' }
+    ]);
+    const statusType = (s) => ({ pending: 'info', processing: 'warning', success: 'success', failed: 'danger' }[s] || 'info');
+    const statusText = (s) => ({ pending: '待处理', processing: '解析中', success: '已完成', failed: '失败' }[s] || s);
+    return { activeTab, parseHistory, projectHistory, statusType, statusText };
+  }
+};
+const app = createApp(App);
+app.use(ElementPlus);
+for (const [key, comp] of Object.entries(ElementPlusIconsVue)) app.component(key, comp);
+app.mount('#app');
+</script>
+</body>
+</html>

@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>个人中心 · TaskPilot</title>
+<link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css">
+<link rel="stylesheet" href="common.css">
+</head>
+<body>
+<div id="app">
+  <div class="app-layout">
+    <aside class="app-sidebar">
+      <div class="sidebar-logo"><div class="logo-icon">T</div><span class="logo-text">TaskPilot</span></div>
+      <nav class="sidebar-nav">
+        <a class="sidebar-nav-item" href="dashboard.html"><el-icon><HomeFilled/></el-icon> 工作台</a>
+        <a class="sidebar-nav-item" href="parse-new.html"><el-icon><Upload/></el-icon> 新建解析</a>
+        <a class="sidebar-nav-item" href="projects.html"><el-icon><Folder/></el-icon> 项目管理</a>
+        <a class="sidebar-nav-item" href="history.html"><el-icon><Clock/></el-icon> 历史记录</a>
+        <a class="sidebar-nav-item active" href="profile.html"><el-icon><User/></el-icon> 个人中心</a>
+      </nav>
+      <div class="sidebar-footer"><a class="sidebar-nav-item" href="index.html"><el-icon><Back/></el-icon> 返回预览总览</a></div>
+    </aside>
+
+    <div class="app-main">
+      <header class="app-header">
+        <span class="header-title">个人中心</span>
+        <div class="header-right">
+          <el-avatar :size="34" style="background:linear-gradient(135deg,#38a5ff,#1f7fd0);">z</el-avatar>
+          <span style="font-size:14px;">zmk</span>
+        </div>
+      </header>
+
+      <main class="app-content" style="max-width:680px;">
+        <!-- Profile header -->
+        <div class="tp-card" style="padding:32px;text-align:center;margin-bottom:24px;">
+          <el-avatar :size="80" style="background:linear-gradient(135deg,#38a5ff,#1f7fd0);font-size:32px;">z</el-avatar>
+          <h2 style="margin:16px 0 4px;font-size:20px;">zmk</h2>
+          <p style="margin:0;font-size:14px;color:var(--color-text-soft);">zmk@example.com</p>
+          <div style="display:flex;justify-content:center;gap:32px;margin-top:24px;">
+            <div><div style="font-size:24px;font-weight:700;">12</div><div style="font-size:13px;color:var(--color-text-soft);">文档</div></div>
+            <div><div style="font-size:24px;font-weight:700;">5</div><div style="font-size:13px;color:var(--color-text-soft);">项目</div></div>
+            <div><div style="font-size:24px;font-weight:700;">8</div><div style="font-size:13px;color:var(--color-text-soft);">解析</div></div>
+          </div>
+        </div>
+
+        <!-- Edit form -->
+        <div class="tp-card" style="padding:28px 32px;">
+          <div class="section-title mb-20"><el-icon><EditPen/></el-icon> 编辑个人信息</div>
+          <el-form :model="form" label-position="top" size="large">
+            <el-form-item label="昵称">
+              <el-input v-model="form.nickname" placeholder="请输入昵称" maxlength="64" show-word-limit></el-input>
+            </el-form-item>
+            <el-form-item label="邮箱">
+              <el-input v-model="form.email" disabled>
+                <template #append><el-tooltip content="邮箱不可修改" placement="top"><el-icon><Lock/></el-icon></el-tooltip></template>
+              </el-input>
+            </el-form-item>
+            <el-form-item label="头像 URL">
+              <el-input v-model="form.avatarUrl" placeholder="输入头像图片地址（可选）" clearable></el-input>
+            </el-form-item>
+          </el-form>
+          <div style="display:flex;gap:12px;margin-top:8px;">
+            <el-button type="primary" :icon="Check" @click="$message.success('个人信息已保存')">保存修改</el-button>
+            <el-button @click="$message.info('已重置')">重置</el-button>
+          </div>
+        </div>
+
+        <!-- Danger zone -->
+        <div class="tp-card" style="padding:24px 32px;margin-top:24px;border-color:#f5c6cb;">
+          <div class="section-title mb-12" style="color:var(--color-danger);"><el-icon><WarnTriangleFilled/></el-icon> 账号操作</div>
+          <div class="flex-between" style="padding:8px 0;">
+            <div>
+              <div style="font-size:14px;font-weight:500;">退出登录</div>
+              <div style="font-size:13px;color:var(--color-text-soft);">退出当前账号，需要重新登录</div>
+            </div>
+            <el-button type="danger" plain :icon="SwitchButton" @click="logout">退出登录</el-button>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+<script src="https://unpkg.com/element-plus"></script>
+<script src="https://unpkg.com/@element-plus/icons-vue"></script>
+<script>
+const { createApp, ref, reactive } = Vue;
+const { ElMessage, ElMessageBox } = ElementPlus;
+
+const App = {
+  setup() {
+    const form = reactive({
+      nickname: 'zmk',
+      email: 'zmk@example.com',
+      avatarUrl: ''
+    });
+    const logout = () => {
+      ElMessageBox.confirm('确定要退出登录吗？', '退出登录', {
+        confirmButtonText: '退出',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }).then(() => {
+        ElMessage.success('已退出登录');
+        setTimeout(() => location.href = 'login.html', 600);
+      }).catch(() => {});
+    };
+    return { form, logout,
+      Check: ElementPlusIconsVue.Check, Lock: ElementPlusIconsVue.Lock,
+      SwitchButton: ElementPlusIconsVue.SwitchButton };
+  }
+};
+const app = createApp(App);
+app.use(ElementPlus);
+for (const [key, comp] of Object.entries(ElementPlusIconsVue)) app.component(key, comp);
+app.mount('#app');
+</script>
+</body>
+</html>

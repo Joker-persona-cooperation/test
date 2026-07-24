@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>项目管理 · TaskPilot</title>
+<link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css">
+<link rel="stylesheet" href="common.css">
+<style>
+  .project-card { padding: 22px 24px; cursor: pointer; }
+  .project-card h3 { margin: 0 0 6px; font-size: 16px; font-weight: 600; }
+  .project-card .desc { font-size: 13px; color: var(--color-text-soft); line-height: 1.6; margin-bottom: 16px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .project-meta { display: flex; align-items: center; justify-content: space-between; padding-top: 14px; border-top: 1px solid var(--color-border); }
+  .project-stats { display: flex; gap: 16px; font-size: 13px; color: var(--color-text-soft); }
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="app-layout">
+    <aside class="app-sidebar">
+      <div class="sidebar-logo"><div class="logo-icon">T</div><span class="logo-text">TaskPilot</span></div>
+      <nav class="sidebar-nav">
+        <a class="sidebar-nav-item" href="dashboard.html"><el-icon><HomeFilled/></el-icon> 工作台</a>
+        <a class="sidebar-nav-item" href="parse-new.html"><el-icon><Upload/></el-icon> 新建解析</a>
+        <a class="sidebar-nav-item active" href="projects.html"><el-icon><Folder/></el-icon> 项目管理</a>
+        <a class="sidebar-nav-item" href="history.html"><el-icon><Clock/></el-icon> 历史记录</a>
+        <a class="sidebar-nav-item" href="profile.html"><el-icon><User/></el-icon> 个人中心</a>
+      </nav>
+      <div class="sidebar-footer"><a class="sidebar-nav-item" href="index.html"><el-icon><Back/></el-icon> 返回预览总览</a></div>
+    </aside>
+
+    <div class="app-main">
+      <header class="app-header">
+        <span class="header-title">项目管理</span>
+        <div class="header-right">
+          <el-button type="primary" :icon="Plus" @click="$message.info('请先创建解析任务')">新建项目</el-button>
+          <el-avatar :size="34" style="background:linear-gradient(135deg,#38a5ff,#1f7fd0);">z</el-avatar>
+          <span style="font-size:14px;">zmk</span>
+        </div>
+      </header>
+
+      <main class="app-content">
+        <div class="flex-between mb-20">
+          <el-radio-group v-model="filter">
+            <el-radio-button value="all">全部 ({{projects.length}})</el-radio-button>
+            <el-radio-button value="active">进行中</el-radio-button>
+            <el-radio-button value="archived">已归档</el-radio-button>
+          </el-radio-group>
+          <el-input v-model="search" placeholder="搜索项目名称" :prefix-icon="Search" style="width:240px;" clearable></el-input>
+        </div>
+
+        <el-row :gutter="20" v-if="filteredProjects.length">
+          <el-col :span="8" v-for="p in filteredProjects" :key="p.id" style="margin-bottom:20px;">
+            <div class="tp-card tp-card-hover project-card" @click="location.href='project-detail.html'">
+              <div class="flex-between mb-8">
+                <el-tag :type="p.status==='active'?'':'info'" effect="plain" size="small">{{p.status==='active'?'进行中':'已归档'}}</el-tag>
+                <el-dropdown trigger="click" @click.stop>
+                  <el-icon style="color:var(--color-text-soft);cursor:pointer;"><MoreFilled/></el-icon>
+                  <template #dropdown>
+                    <el-dropdown-menu>
+                      <el-dropdown-item @click="$message.info('编辑项目信息')">编辑</el-dropdown-item>
+                      <el-dropdown-item @click="$message.info('项目已归档')">归档</el-dropdown-item>
+                      <el-dropdown-item divided @click="$message.warning('确认删除？')" style="color:#e8553e;">删除</el-dropdown-item>
+                    </el-dropdown-menu>
+                  </template>
+                </el-dropdown>
+              </div>
+              <h3>{{p.name}}</h3>
+              <p class="desc">{{p.description}}</p>
+              <div class="project-meta">
+                <div class="project-stats">
+                  <span class="flex-center gap-4"><el-icon><List/></el-icon> {{p.taskTotal}} 任务</span>
+                  <span class="flex-center gap-4"><el-icon><CircleCheck/></el-icon> {{p.taskDone}} 完成</span>
+                </div>
+                <span v-if="p.deadline" style="font-size:13px;color:var(--color-warning);">{{p.deadline}}</span>
+              </div>
+              <el-progress :percentage="Math.round(p.taskDone/p.taskTotal*100)" :stroke-width="6" :show-text="false" style="margin-top:12px;"></el-progress>
+            </div>
+          </el-col>
+        </el-row>
+
+        <div v-else class="tp-card empty-state">
+          <el-icon><FolderOpened/></el-icon>
+          <p>暂无项目，去创建一个解析任务吧</p>
+          <el-button type="primary" @click="location.href='parse-new.html'" style="margin-top:12px;">新建解析</el-button>
+        </div>
+      </main>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+<script src="https://unpkg.com/element-plus"></script>
+<script src="https://unpkg.com/@element-plus/icons-vue"></script>
+<script>
+const { createApp, ref, reactive, computed } = Vue;
+
+const App = {
+  setup() {
+    const filter = ref('all');
+    const search = ref('');
+    const projects = reactive([
+      { id: 1, name: '创新创业比赛报名项目', description: '2026年大学生创新创业大赛报名及材料准备，包括报名表、说明书和演示视频。', status: 'active', taskTotal: 6, taskDone: 2, deadline: '7月30日' },
+      { id: 2, name: '软件工程课程设计', description: '完成软件工程课程设计项目，包含需求分析、系统设计、编码实现和文档撰写。', status: 'active', taskTotal: 8, taskDone: 5, deadline: '8月05日' },
+      { id: 3, name: '毕业设计开题准备', description: '准备毕业设计开题报告，确定研究方向，撰写文献综述和技术方案。', status: 'active', taskTotal: 5, taskDone: 1, deadline: '8月10日' },
+      { id: 4, name: '数据结构实验报告', description: '完成数据结构课程的三次实验报告，包含算法实现和复杂度分析。', status: 'archived', taskTotal: 3, taskDone: 3, deadline: null },
+      { id: 5, name: '暑期实习项目', description: '暑期实习期间的需求开发任务，包含功能模块开发和代码审查。', status: 'active', taskTotal: 10, taskDone: 4, deadline: '8月20日' }
+    ]);
+    const filteredProjects = computed(() => {
+      return projects.filter(p => {
+        const matchStatus = filter.value === 'all' || p.status === filter.value;
+        const matchSearch = !search.value || p.name.includes(search.value);
+        return matchStatus && matchSearch;
+      });
+    });
+    return { filter, search, projects, filteredProjects, Plus: ElementPlusIconsVue.Plus, Search: ElementPlusIconsVue.Search };
+  }
+};
+const app = createApp(App);
+app.use(ElementPlus);
+for (const [key, comp] of Object.entries(ElementPlusIconsVue)) app.component(key, comp);
+app.mount('#app');
+</script>
+</body>
+</html>

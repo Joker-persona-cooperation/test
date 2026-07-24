@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>新建解析 · TaskPilot</title>
+<link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css">
+<link rel="stylesheet" href="common.css">
+</head>
+<body>
+<div id="app">
+  <div class="app-layout">
+    <aside class="app-sidebar">
+      <div class="sidebar-logo"><div class="logo-icon">T</div><span class="logo-text">TaskPilot</span></div>
+      <nav class="sidebar-nav">
+        <a class="sidebar-nav-item" href="dashboard.html"><el-icon><HomeFilled/></el-icon> 工作台</a>
+        <a class="sidebar-nav-item active" href="parse-new.html"><el-icon><Upload/></el-icon> 新建解析</a>
+        <a class="sidebar-nav-item" href="projects.html"><el-icon><Folder/></el-icon> 项目管理</a>
+        <a class="sidebar-nav-item" href="history.html"><el-icon><Clock/></el-icon> 历史记录</a>
+        <a class="sidebar-nav-item" href="profile.html"><el-icon><User/></el-icon> 个人中心</a>
+      </nav>
+      <div class="sidebar-footer"><a class="sidebar-nav-item" href="index.html"><el-icon><Back/></el-icon> 返回预览总览</a></div>
+    </aside>
+
+    <div class="app-main">
+      <header class="app-header">
+        <el-breadcrumb separator="/"><el-breadcrumb-item>工作台</el-breadcrumb-item><el-breadcrumb-item>新建解析</el-breadcrumb-item></el-breadcrumb>
+        <div class="header-right">
+          <el-avatar :size="34" style="background:linear-gradient(135deg,#38a5ff,#1f7fd0);">z</el-avatar>
+          <span style="font-size:14px;">zmk</span>
+        </div>
+      </header>
+
+      <main class="app-content" style="max-width:760px;">
+        <h2 style="margin:0 0 8px;font-size:22px;">新建解析任务</h2>
+        <p style="margin:0 0 24px;color:var(--color-text-soft);font-size:14px;">上传 PDF 文件或直接粘贴文本，AI 将自动提取标题、截止时间、交付物、关键要求和任务清单。</p>
+
+        <!-- Processing state -->
+        <div v-if="jobStatus" class="tp-card" style="padding:32px;text-align:center;margin-bottom:24px;">
+          <div v-if="jobStatus==='processing'" style="display:flex;flex-direction:column;align-items:center;gap:16px;">
+            <el-icon :size="40" class="el-is-loading" style="color:var(--color-primary);"><Loading/></el-icon>
+            <div>
+              <div style="font-size:16px;font-weight:600;margin-bottom:4px;">AI 正在解析文档...</div>
+              <div style="font-size:13px;color:var(--color-text-soft);">正在提取结构化信息，请稍候</div>
+            </div>
+            <el-progress :percentage="progress" :stroke-width="8" style="width:300px;"></el-progress>
+          </div>
+          <div v-else-if="jobStatus==='success'" style="display:flex;flex-direction:column;align-items:center;gap:12px;">
+            <el-icon :size="40" style="color:var(--color-success);"><CircleCheckFilled/></el-icon>
+            <div style="font-size:16px;font-weight:600;">解析完成！</div>
+            <el-button type="primary" @click="location.href='parse-detail.html'">查看解析结果</el-button>
+          </div>
+          <div v-else style="display:flex;flex-direction:column;align-items:center;gap:12px;">
+            <el-icon :size="40" style="color:var(--color-danger);"><CircleCloseFilled/></el-icon>
+            <div style="font-size:16px;font-weight:600;">解析失败</div>
+            <div style="font-size:13px;color:var(--color-text-soft);">{{errorMsg}}</div>
+            <div style="display:flex;gap:12px;">
+              <el-button @click="jobStatus=''">返回修改</el-button>
+              <el-button type="primary" @click="retry">重试</el-button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Input form -->
+        <div v-show="!jobStatus">
+          <el-tabs v-model="activeTab" class="mb-24">
+            <el-tab-pane label="PDF 上传" name="pdf">
+              <div class="upload-zone" @click="triggerUpload">
+                <el-icon><UploadFilled/></el-icon>
+                <div style="font-size:15px;font-weight:500;margin-bottom:4px;">将 PDF 文件拖拽到此处，或点击上传</div>
+                <div style="font-size:13px;color:var(--color-text-soft);">仅支持文字型 PDF，文件大小不超过 10MB</div>
+                <input ref="fileInput" type="file" accept=".pdf" style="display:none;" @change="onFileChange">
+              </div>
+              <div v-if="pdfFile" class="tp-card" style="padding:16px 20px;margin-top:16px;display:flex;align-items:center;justify-content:space-between;">
+                <div class="flex-center gap-12">
+                  <el-icon :size="28" style="color:#e8553e;"><Document/></el-icon>
+                  <div>
+                    <div style="font-size:14px;font-weight:500;">{{pdfFile.name}}</div>
+                    <div style="font-size:12px;color:var(--color-text-soft);">{{formatSize(pdfFile.size)}}</div>
+                  </div>
+                </div>
+                <el-button text type="danger" :icon="Delete" @click="pdfFile=null">移除</el-button>
+              </div>
+            </el-tab-pane>
+
+            <el-tab-pane label="文本粘贴" name="text">
+              <el-form label-position="top">
+                <el-form-item label="文档标题">
+                  <el-input v-model="textForm.title" placeholder="请输入文档标题" maxlength="255" show-word-limit></el-input>
+                </el-form-item>
+                <el-form-item label="文档内容">
+                  <el-input v-model="textForm.text" type="textarea" :rows="10" placeholder="粘贴要求文档、通知或需求描述的全文..." maxlength="50000" show-word-limit></el-input>
+                  <div style="font-size:12px;color:var(--color-text-soft);margin-top:4px;">最多 50,000 字符</div>
+                </el-form-item>
+              </el-form>
+            </el-tab-pane>
+          </el-tabs>
+
+          <div style="display:flex;gap:12px;">
+            <el-button size="large" @click="location.href='dashboard.html'">取消</el-button>
+            <el-button size="large" type="primary" :icon="Promotion" @click="submit" :loading="submitting">
+              提交解析
+            </el-button>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+<script src="https://unpkg.com/element-plus"></script>
+<script src="https://unpkg.com/@element-plus/icons-vue"></script>
+<script>
+const { createApp, ref, reactive, computed } = Vue;
+const { ElMessage } = ElementPlus;
+
+const App = {
+  setup() {
+    const activeTab = ref('pdf');
+    const pdfFile = ref(null);
+    const fileInput = ref();
+    const textForm = reactive({ title: '', text: '' });
+    const jobStatus = ref('');
+    const progress = ref(0);
+    const submitting = ref(false);
+    const errorMsg = ref('');
+
+    const triggerUpload = () => fileInput.value.click();
+    const onFileChange = (e) => {
+      const f = e.target.files[0];
+      if (!f) return;
+      if (!f.name.endsWith('.pdf')) { ElMessage.error('仅支持 PDF 文件'); return; }
+      if (f.size > 10 * 1024 * 1024) { ElMessage.error('文件大小不能超过 10MB'); return; }
+      pdfFile.value = f;
+    };
+    const formatSize = (bytes) => {
+      if (bytes < 1024) return bytes + ' B';
+      if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+      return (bytes / 1048576).toFixed(1) + ' MB';
+    };
+    const submit = () => {
+      if (activeTab.value === 'pdf' && !pdfFile.value) { ElMessage.warning('请先上传 PDF 文件'); return; }
+      if (activeTab.value === 'text') {
+        if (!textForm.title.trim()) { ElMessage.warning('请输入文档标题'); return; }
+        if (!textForm.text.trim()) { ElMessage.warning('请输入文档内容'); return; }
+      }
+      submitting.value = true;
+      setTimeout(() => {
+        submitting.value = false;
+        jobStatus.value = 'processing';
+        progress.value = 0;
+        const timer = setInterval(() => {
+          progress.value += Math.random() * 20;
+          if (progress.value >= 100) {
+            progress.value = 100;
+            clearInterval(timer);
+            jobStatus.value = 'success';
+          }
+        }, 300);
+      }, 600);
+    };
+    const retry = () => {
+      jobStatus.value = 'processing';
+      progress.value = 0;
+      const timer = setInterval(() => {
+        progress.value += Math.random() * 20;
+        if (progress.value >= 100) { progress.value = 100; clearInterval(timer); jobStatus.value = 'success'; }
+      }, 300);
+    };
+    return { activeTab, pdfFile, fileInput, textForm, jobStatus, progress, submitting, errorMsg,
+      triggerUpload, onFileChange, formatSize, submit, retry,
+      Delete: ElementPlusIconsVue.Delete, Promotion: ElementPlusIconsVue.Promotion };
+  }
+};
+const app = createApp(App);
+app.use(ElementPlus);
+for (const [key, comp] of Object.entries(ElementPlusIconsVue)) app.component(key, comp);
+app.mount('#app');
+</script>
+</body>
+</html>
