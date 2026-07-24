@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>解析详情 · TaskPilot</title>
+<link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css">
+<link rel="stylesheet" href="common.css">
+<style>
+  .split-layout { display: flex; gap: 20px; align-items: flex-start; }
+  .split-left { width: 38%; flex-shrink: 0; position: sticky; top: 88px; }
+  .split-right { flex: 1; min-width: 0; }
+  .original-text {
+    background: var(--color-bg); border-radius: 8px; padding: 20px;
+    max-height: 600px; overflow-y: auto; font-size: 14px; line-height: 1.8;
+    color: var(--color-text); white-space: pre-wrap;
+  }
+  .edit-section { margin-bottom: 16px; }
+  .edit-section-header {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 14px; font-weight: 600; margin-bottom: 10px;
+  }
+  .list-item-edit {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
+  }
+  .list-item-edit .el-input { flex: 1; }
+  .task-item-edit {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
+    padding: 10px 12px; background: var(--color-bg); border-radius: 8px;
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="app-layout">
+    <aside class="app-sidebar">
+      <div class="sidebar-logo"><div class="logo-icon">T</div><span class="logo-text">TaskPilot</span></div>
+      <nav class="sidebar-nav">
+        <a class="sidebar-nav-item" href="dashboard.html"><el-icon><HomeFilled/></el-icon> 工作台</a>
+        <a class="sidebar-nav-item" href="parse-new.html"><el-icon><Upload/></el-icon> 新建解析</a>
+        <a class="sidebar-nav-item" href="projects.html"><el-icon><Folder/></el-icon> 项目管理</a>
+        <a class="sidebar-nav-item" href="history.html"><el-icon><Clock/></el-icon> 历史记录</a>
+        <a class="sidebar-nav-item" href="profile.html"><el-icon><User/></el-icon> 个人中心</a>
+      </nav>
+      <div class="sidebar-footer"><a class="sidebar-nav-item" href="index.html"><el-icon><Back/></el-icon> 返回预览总览</a></div>
+    </aside>
+
+    <div class="app-main">
+      <header class="app-header">
+        <el-breadcrumb separator="/">
+          <el-breadcrumb-item>历史记录</el-breadcrumb-item>
+          <el-breadcrumb-item>解析详情</el-breadcrumb-item>
+        </el-breadcrumb>
+        <div class="header-right">
+          <el-button :icon="Check" @click="$message.success('解析结果已保存')">保存</el-button>
+          <el-button type="primary" :icon="FolderAdd" @click="saveAsProject">保存为项目</el-button>
+          <el-avatar :size="34" style="background:linear-gradient(135deg,#38a5ff,#1f7fd0);">z</el-avatar>
+        </div>
+      </header>
+
+      <main class="app-content">
+        <div style="margin-bottom:20px;">
+          <div class="flex-between mb-8">
+            <div class="flex-center gap-12">
+              <el-tag type="success" effect="plain" size="small">解析完成</el-tag>
+              <span style="font-size:13px;color:var(--color-text-soft);">AI 模型：gpt-4o · 版本 v1</span>
+            </div>
+            <el-tag v-if="!confirmed" type="warning" effect="plain" size="small">未确认</el-tag>
+            <el-tag v-else type="success" effect="plain" size="small">已确认</el-tag>
+          </div>
+        </div>
+
+        <div class="split-layout">
+          <div class="split-left">
+            <div class="tp-card" style="padding:20px;">
+              <div class="section-title mb-12"><el-icon><Document/></el-icon> 原文预览</div>
+              <div class="original-text">{{originalText}}</div>
+            </div>
+          </div>
+
+          <div class="split-right">
+            <div class="tp-card" style="padding:24px;">
+              <div class="edit-section">
+                <div class="edit-section-header"><el-icon><EditPen/></el-icon> 文档标题</div>
+                <el-input v-model="result.title" size="large"></el-input>
+              </div>
+
+              <div class="edit-section">
+                <div class="edit-section-header"><el-icon><Document/></el-icon> 文档摘要</div>
+                <el-input v-model="result.summary" type="textarea" :rows="3"></el-input>
+              </div>
+
+              <div class="edit-section">
+                <div class="edit-section-header"><el-icon><Calendar/></el-icon> 截止时间</div>
+                <el-date-picker v-model="result.deadline" type="datetime" placeholder="选择截止时间" format="YYYY-MM-DD HH:mm" value-format="YYYY-MM-DDTHH:mm:ss" style="width:100%;"></el-date-picker>
+              </div>
+
+              <div class="edit-section">
+                <div class="flex-between mb-8">
+                  <div class="edit-section-header" style="margin-bottom:0;"><el-icon><Box/></el-icon> 交付物列表</div>
+                  <el-button text type="primary" :icon="Plus" @click="result.deliverables.push('')">添加</el-button>
+                </div>
+                <div v-for="(item, i) in result.deliverables" :key="i" class="list-item-edit">
+                  <el-input v-model="result.deliverables[i]" placeholder="输入交付物名称"></el-input>
+                  <el-button text type="danger" :icon="Delete" @click="result.deliverables.splice(i,1)"></el-button>
+                </div>
+              </div>
+
+              <div class="edit-section">
+                <div class="flex-between mb-8">
+                  <div class="edit-section-header" style="margin-bottom:0;"><el-icon><Checked/></el-icon> 关键要求</div>
+                  <el-button text type="primary" :icon="Plus" @click="result.keyRequirements.push('')">添加</el-button>
+                </div>
+                <div v-for="(item, i) in result.keyRequirements" :key="i" class="list-item-edit">
+                  <el-input v-model="result.keyRequirements[i]" placeholder="输入关键要求"></el-input>
+                  <el-button text type="danger" :icon="Delete" @click="result.keyRequirements.splice(i,1)"></el-button>
+                </div>
+              </div>
+
+              <div class="edit-section">
+                <div class="flex-between mb-8">
+                  <div class="edit-section-header" style="margin-bottom:0;"><el-icon><WarnTriangleFilled/></el-icon> 风险提醒</div>
+                  <el-button text type="primary" :icon="Plus" @click="result.riskWarnings.push('')">添加</el-button>
+                </div>
+                <div v-for="(item, i) in result.riskWarnings" :key="i" class="list-item-edit">
+                  <el-input v-model="result.riskWarnings[i]" placeholder="输入风险提醒"></el-input>
+                  <el-button text type="danger" :icon="Delete" @click="result.riskWarnings.splice(i,1)"></el-button>
+                </div>
+              </div>
+
+              <div class="edit-section">
+                <div class="flex-between mb-8">
+                  <div class="edit-section-header" style="margin-bottom:0;"><el-icon><List/></el-icon> AI 任务建议清单</div>
+                  <el-button text type="primary" :icon="Plus" @click="result.tasks.push({title:'',priority:'medium'})">添加任务</el-button>
+                </div>
+                <div v-for="(task, i) in result.tasks" :key="i" class="task-item-edit">
+                  <el-input v-model="task.title" placeholder="任务标题"></el-input>
+                  <el-select v-model="task.priority" style="width:110px;">
+                    <el-option label="高" value="high"></el-option>
+                    <el-option label="中" value="medium"></el-option>
+                    <el-option label="低" value="low"></el-option>
+                  </el-select>
+                  <el-button text type="danger" :icon="Delete" @click="result.tasks.splice(i,1)"></el-button>
+                </div>
+                <el-alert type="info" :closable="false" style="margin-top:8px;">
+                  此处编辑的是解析结果快照。保存为项目后，任务将展开为独立项目任务，后续在项目页编辑不再回写此处。
+                </el-alert>
+              </div>
+
+              <div style="display:flex;gap:12px;padding-top:16px;border-top:1px solid var(--color-border);">
+                <el-button @click="$message.success('解析结果已保存')" :icon="Check">保存修改</el-button>
+                <el-button @click="confirmResult" :icon="CircleCheck" :type="confirmed?'':'primary'" :plain="confirmed">
+                  {{confirmed ? '已确认' : '确认结果'}}
+                </el-button>
+                <div style="flex:1;"></div>
+                <el-button type="primary" @click="saveAsProject" :icon="FolderAdd">保存为项目</el-button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+<script src="https://unpkg.com/element-plus"></script>
+<script src="https://unpkg.com/@element-plus/icons-vue"></script>
+<script>
+const { createApp, ref, reactive } = Vue;
+const { ElMessage, ElMessageBox } = ElementPlus;
+
+const App = {
+  setup() {
+    const confirmed = ref(false);
+    const result = reactive({
+      title: '2026年大学生创新创业大赛报名通知',
+      summary: '本次大赛面向全校在校大学生，要求以团队形式报名参赛，每队不超过5人。需在7月30日前提交报名表、项目说明书和演示视频。评审重点为创新性、可行性和团队协作。',
+      deadline: '2026-07-30T23:59:00',
+      deliverables: ['报名表（PDF格式）', '项目说明书（不超过20页）', '演示视频（3-5分钟）', '团队成员信息表'],
+      keyRequirements: ['每队不超过5人', '项目负责人须为在校本科生', '项目说明书需包含技术路线和预算', '演示视频须含产品原型展示'],
+      riskWarnings: ['截止时间较紧，建议尽早启动', '视频制作可能需要额外时间', '预算部分需提前与指导老师确认'],
+      tasks: [
+        { title: '组建参赛团队并确认分工', priority: 'high' },
+        { title: '填写并提交报名表', priority: 'high' },
+        { title: '撰写项目说明书', priority: 'high' },
+        { title: '录制产品演示视频', priority: 'medium' },
+        { title: '准备团队成员信息表', priority: 'low' },
+        { title: '联系指导老师审核预算', priority: 'medium' }
+      ]
+    });
+    const originalText = '2026年大学生创新创业大赛报名通知\n\n各学院、各参赛团队：\n\n为培养大学生的创新精神和创业能力，学校定于2026年举办大学生创新创业大赛。现将有关事项通知如下：\n\n一、参赛对象\n全校在校本科生、研究生，以团队形式报名，每队不超过5人，须指定1名负责人。\n\n二、报名方式\n参赛团队须在2026年7月30日前提交以下材料：\n1. 报名表（PDF格式，加盖学院公章）\n2. 项目说明书（不超过20页，含技术路线、实施方案和预算）\n3. 演示视频（3-5分钟，须含产品原型展示）\n4. 团队成员信息表\n\n三、评审标准\n1. 创新性（30%）\n2. 可行性（30%）\n3. 团队协作（20%）\n4. 展示效果（20%）';
+
+    const confirmResult = () => {
+      confirmed.value = true;
+      ElMessage.success('解析结果已确认');
+    };
+    const saveAsProject = () => {
+      ElMessageBox.confirm('确认将此解析结果保存为新项目？系统将根据任务建议清单自动生成项目任务。', '保存为项目', {
+        confirmButtonText: '确认保存',
+        cancelButtonText: '取消',
+        type: 'info'
+      }).then(() => {
+        ElMessage.success('项目创建成功，正在跳转...');
+        setTimeout(() => location.href = 'project-detail.html', 1200);
+      }).catch(() => {});
+    };
+    return { result, originalText, confirmed, confirmResult, saveAsProject,
+      Plus: ElementPlusIconsVue.Plus, Delete: ElementPlusIconsVue.Delete,
+      Check: ElementPlusIconsVue.Check, FolderAdd: ElementPlusIconsVue.FolderAdd,
+      CircleCheck: ElementPlusIconsVue.CircleCheck };
+  }
+};
+const app = createApp(App);
+app.use(ElementPlus);
+for (const [key, comp] of Object.entries(ElementPlusIconsVue)) app.component(key, comp);
+app.mount('#app');
+</script>
+</body>
+</html>

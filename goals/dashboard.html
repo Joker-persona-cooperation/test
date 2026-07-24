@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>工作台 · TaskPilot</title>
+<link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css">
+<link rel="stylesheet" href="common.css">
+</head>
+<body>
+<div id="app">
+  <div class="app-layout">
+    <!-- Sidebar -->
+    <aside class="app-sidebar">
+      <div class="sidebar-logo">
+        <div class="logo-icon">T</div>
+        <span class="logo-text">TaskPilot</span>
+      </div>
+      <nav class="sidebar-nav">
+        <a class="sidebar-nav-item active" href="dashboard.html"><el-icon><HomeFilled/></el-icon> 工作台</a>
+        <a class="sidebar-nav-item" href="parse-new.html"><el-icon><Upload/></el-icon> 新建解析</a>
+        <a class="sidebar-nav-item" href="projects.html"><el-icon><Folder/></el-icon> 项目管理</a>
+        <a class="sidebar-nav-item" href="history.html"><el-icon><Clock/></el-icon> 历史记录</a>
+        <a class="sidebar-nav-item" href="profile.html"><el-icon><User/></el-icon> 个人中心</a>
+      </nav>
+      <div class="sidebar-footer">
+        <a class="sidebar-nav-item" href="index.html"><el-icon><Back/></el-icon> 返回预览总览</a>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <div class="app-main">
+      <header class="app-header">
+        <span class="header-title">工作台</span>
+        <div class="header-right">
+          <el-button type="primary" :icon="Plus" @click="$message.info('跳转到新建解析页')" round>新建解析</el-button>
+          <el-dropdown>
+            <div class="flex-center gap-8 cursor-pointer">
+              <el-avatar :size="34" style="background:linear-gradient(135deg,#38a5ff,#1f7fd0);">z</el-avatar>
+              <span style="font-size:14px;">zmk</span>
+            </div>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item @click="location.href='profile.html'">个人中心</el-dropdown-item>
+                <el-dropdown-item divided @click="$message.warning('已退出登录')">退出登录</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+        </div>
+      </header>
+
+      <main class="app-content">
+        <!-- Welcome banner -->
+        <div style="background:linear-gradient(135deg,#38a5ff,#1f7fd0);border-radius:12px;padding:28px 32px;color:#fff;margin-bottom:24px;display:flex;align-items:center;justify-content:space-between;">
+          <div>
+            <h2 style="margin:0 0 6px;font-size:22px;font-weight:700;">{{greeting}}，zmk 👋</h2>
+            <p style="margin:0;font-size:14px;opacity:0.92;">今天有 {{reminders.length}} 个任务即将到期，继续加油！</p>
+          </div>
+          <div style="font-size:48px;opacity:0.3;">
+            <el-icon :size="48"><Document/></el-icon>
+          </div>
+        </div>
+
+        <!-- Stats -->
+        <el-row :gutter="20" style="margin-bottom:24px;">
+          <el-col :span="6" v-for="s in stats" :key="s.label">
+            <div class="stat-card">
+              <div class="stat-icon" :style="{background:s.bg,color:s.color}">
+                <el-icon :size="22"><component :is="s.icon"/></el-icon>
+              </div>
+              <div>
+                <div class="stat-value">{{s.value}}</div>
+                <div class="stat-label">{{s.label}}</div>
+              </div>
+            </div>
+          </el-col>
+        </el-row>
+
+        <el-row :gutter="20">
+          <!-- Recent records -->
+          <el-col :span="15">
+            <div class="tp-card" style="padding:20px 24px;">
+              <div class="flex-between mb-16">
+                <div class="section-title"><el-icon><Clock/></el-icon> 最近解析记录</div>
+                <a href="history.html" style="font-size:13px;">查看全部</a>
+              </div>
+              <el-table :data="recentDocs" :show-header="true" style="width:100%;">
+                <el-table-column label="标题" min-width="200">
+                  <template #default="{row}">
+                    <a :href="'parse-detail.html'" style="font-weight:500;">{{row.title}}</a>
+                  </template>
+                </el-table-column>
+                <el-table-column label="来源" width="80">
+                  <template #default="{row}">
+                    <el-tag size="small" :type="row.source==='pdf'?'':'info'" effect="plain">{{row.source==='pdf'?'PDF':'文本'}}</el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column label="状态" width="110">
+                  <template #default="{row}">
+                    <el-tag size="small" :type="statusType(row.status)">{{statusText(row.status)}}</el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column label="创建时间" width="170" prop="time"></el-table-column>
+              </el-table>
+            </div>
+          </el-col>
+
+          <!-- Reminders -->
+          <el-col :span="9">
+            <div class="tp-card" style="padding:20px 24px;">
+              <div class="section-title mb-16"><el-icon><Bell/></el-icon> 今日提醒</div>
+              <div v-if="reminders.length===0" class="empty-state">
+                <el-icon><Bell/></el-icon>
+                <p>暂无到期提醒</p>
+              </div>
+              <div v-else>
+                <div v-for="r in reminders" :key="r.id" style="display:flex;gap:12px;padding:12px 0;border-bottom:1px solid var(--color-border);">
+                  <div style="width:6px;border-radius:3px;flex-shrink:0;" :style="{background:r.urgent?'#e8553e':'#ef9f39'}"></div>
+                  <div style="flex:1;min-width:0;">
+                    <div style="font-size:14px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{r.title}}</div>
+                    <div style="font-size:12px;color:var(--color-text-soft);margin-top:2px;">{{r.project}} · {{r.deadline}}</div>
+                  </div>
+                  <el-tag size="small" :type="r.urgent?'danger':'warning'" effect="plain">{{r.daysLeft}}</el-tag>
+                </div>
+              </div>
+            </div>
+          </el-col>
+        </el-row>
+      </main>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+<script src="https://unpkg.com/element-plus"></script>
+<script src="https://unpkg.com/@element-plus/icons-vue"></script>
+<script>
+const { createApp, ref, computed } = Vue;
+
+const App = {
+  setup() {
+    const hour = new Date().getHours();
+    const greeting = hour < 12 ? '上午好' : hour < 18 ? '下午好' : '晚上好';
+    const stats = [
+      { label: '文档总数', value: 12, icon: 'Document', bg: '#e8f5ff', color: '#38a5ff' },
+      { label: '解析任务', value: 8, icon: 'Cpu', bg: '#fff4e6', color: '#ef9f39' },
+      { label: '进行中项目', value: 5, icon: 'Folder', bg: '#e8faf0', color: '#1f9a67' },
+      { label: '待办任务', value: 23, icon: 'List', bg: '#fce8e8', color: '#e8553e' }
+    ];
+    const recentDocs = [
+      { title: '2026年大学生创新创业大赛报名通知', source: 'pdf', status: 'success', time: '2026-07-24 14:32' },
+      { title: '软件工程课程设计要求', source: 'text', status: 'success', time: '2026-07-23 20:15' },
+      { title: '毕业设计开题报告模板说明', source: 'pdf', status: 'processing', time: '2026-07-23 16:08' },
+      { title: '暑期实习项目需求文档', source: 'text', status: 'failed', time: '2026-07-22 10:20' },
+      { title: '数据结构实验报告要求', source: 'text', status: 'success', time: '2026-07-21 09:45' }
+    ];
+    const reminders = [
+      { id: 1, title: '提交项目说明书', project: '创新创业比赛报名', deadline: '7月26日', daysLeft: '2天', urgent: true },
+      { id: 2, title: '录制演示视频', project: '创新创业比赛报名', deadline: '7月28日', daysLeft: '4天', urgent: false },
+      { id: 3, title: '完成课程设计报告', project: '软件工程课程设计', deadline: '7月30日', daysLeft: '6天', urgent: false }
+    ];
+    const statusType = (s) => ({ pending: 'info', processing: 'warning', success: 'success', failed: 'danger' }[s] || 'info');
+    const statusText = (s) => ({ pending: '待处理', processing: '解析中', success: '已完成', failed: '失败' }[s] || s);
+    return { greeting, stats, recentDocs, reminders, statusType, statusText, Plus: ElementPlusIconsVue.Plus };
+  }
+};
+const app = createApp(App);
+app.use(ElementPlus);
+for (const [key, comp] of Object.entries(ElementPlusIconsVue)) app.component(key, comp);
+app.mount('#app');
+</script>
+</body>
+</html>

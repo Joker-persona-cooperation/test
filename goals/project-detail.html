@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>项目详情 · TaskPilot</title>
+<link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css">
+<link rel="stylesheet" href="common.css">
+<style>
+  .kanban-task-card .task-title { font-size: 14px; font-weight: 500; margin-bottom: 6px; line-height: 1.4; }
+  .kanban-task-card .task-desc { font-size: 12px; color: var(--color-text-soft); margin-bottom: 8px; line-height: 1.5; }
+  .kanban-task-card .task-meta { display: flex; align-items: center; justify-content: space-between; }
+  .add-task-btn {
+    width: 100%; border: 1px dashed var(--color-border); border-radius: 8px;
+    background: transparent; color: var(--color-text-soft); cursor: pointer;
+    padding: 8px; font-size: 13px; display: flex; align-items: center; justify-content: center; gap: 4px;
+    transition: all 0.2s;
+  }
+  .add-task-btn:hover { border-color: var(--color-primary); color: var(--color-primary); background: var(--color-primary-soft); }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="app-layout">
+    <aside class="app-sidebar">
+      <div class="sidebar-logo"><div class="logo-icon">T</div><span class="logo-text">TaskPilot</span></div>
+      <nav class="sidebar-nav">
+        <a class="sidebar-nav-item" href="dashboard.html"><el-icon><HomeFilled/></el-icon> 工作台</a>
+        <a class="sidebar-nav-item" href="parse-new.html"><el-icon><Upload/></el-icon> 新建解析</a>
+        <a class="sidebar-nav-item active" href="projects.html"><el-icon><Folder/></el-icon> 项目管理</a>
+        <a class="sidebar-nav-item" href="history.html"><el-icon><Clock/></el-icon> 历史记录</a>
+        <a class="sidebar-nav-item" href="profile.html"><el-icon><User/></el-icon> 个人中心</a>
+      </nav>
+      <div class="sidebar-footer"><a class="sidebar-nav-item" href="index.html"><el-icon><Back/></el-icon> 返回预览总览</a></div>
+    </aside>
+
+    <div class="app-main">
+      <header class="app-header">
+        <el-breadcrumb separator="/">
+          <el-breadcrumb-item><a href="projects.html">项目管理</a></el-breadcrumb-item>
+          <el-breadcrumb-item>创新创业比赛报名项目</el-breadcrumb-item>
+        </el-breadcrumb>
+        <div class="header-right">
+          <el-dropdown>
+            <el-button :icon="MoreFilled">操作</el-button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item :icon="EditPen" @click="$message.info('编辑项目信息')">编辑项目</el-dropdown-item>
+                <el-dropdown-item :icon="Box" @click="$message.info('项目已归档')">归档</el-dropdown-item>
+                <el-dropdown-item :icon="Delete" divided @click="$message.warning('确认删除？')" style="color:#e8553e;">删除项目</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+          <el-avatar :size="34" style="background:linear-gradient(135deg,#38a5ff,#1f7fd0);">z</el-avatar>
+        </div>
+      </header>
+
+      <main class="app-content">
+        <!-- Project info -->
+        <div class="tp-card" style="padding:24px 28px;margin-bottom:24px;">
+          <div class="flex-between">
+            <div>
+              <h2 style="margin:0 0 8px;font-size:20px;">创新创业比赛报名项目</h2>
+              <p style="margin:0 0 12px;font-size:14px;color:var(--color-text-soft);line-height:1.6;max-width:600px;">2026年大学生创新创业大赛报名及材料准备，包括报名表、说明书和演示视频。</p>
+              <div class="flex-center gap-16 text-sm text-soft">
+                <span class="flex-center gap-8"><el-icon><Calendar/></el-icon> 截止：7月30日</span>
+                <span class="flex-center gap-8"><el-icon><Clock/></el-icon> 创建：7月24日</span>
+                <span class="flex-center gap-8"><el-icon><Link/></el-icon> 来源文档：比赛报名通知</span>
+              </div>
+            </div>
+            <div style="text-align:center;">
+              <el-progress type="dashboard" :percentage="progressPct" :width="100" :stroke-width="8">
+                <template #default="{ percentage }">
+                  <span style="font-size:20px;font-weight:700;">{{percentage}}%</span>
+                </template>
+              </el-progress>
+              <div style="font-size:12px;color:var(--color-text-soft);margin-top:4px;">{{doneCount}}/{{allTasks.length}} 完成</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Kanban board -->
+        <div class="kanban-board">
+          <div v-for="col in columns" :key="col.status" class="kanban-column">
+            <div class="kanban-column-header">
+              <div class="kanban-column-title">
+                <span class="status-dot" :style="{background: col.color}"></span>
+                {{col.title}}
+                <span class="kanban-count">{{getColumnTasks(col.status).length}}</span>
+              </div>
+              <el-button text :icon="Plus" size="small" @click="openAddTask(col.status)"></el-button>
+            </div>
+
+            <div v-for="task in getColumnTasks(col.status)" :key="task.id" class="kanban-task-card" @click="openEditTask(task)">
+              <div class="task-title">{{task.title}}</div>
+              <div v-if="task.description" class="task-desc">{{task.description}}</div>
+              <div class="task-meta">
+                <el-tag size="small" :type="priorityType(task.priority)" effect="plain">{{priorityText(task.priority)}}</el-tag>
+                <span v-if="task.deadline" style="font-size:12px;color:var(--color-warning);">
+                  <el-icon style="vertical-align:-2px;"><Calendar/></el-icon> {{task.deadline}}
+                </span>
+                <el-tag v-if="task.source==='ai'" size="small" type="primary" effect="plain">AI</el-tag>
+              </div>
+            </div>
+
+            <button class="add-task-btn" @click="openAddTask(col.status)">
+              <el-icon><Plus/></el-icon> 添加任务
+            </button>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <!-- Add/Edit task dialog -->
+  <el-dialog v-model="dialogVisible" :title="editingTask.id ? '编辑任务' : '添加任务'" width="480px">
+    <el-form :model="editingTask" label-position="top">
+      <el-form-item label="任务标题">
+        <el-input v-model="editingTask.title" placeholder="请输入任务标题"></el-input>
+      </el-form-item>
+      <el-form-item label="任务描述">
+        <el-input v-model="editingTask.description" type="textarea" :rows="3" placeholder="可选"></el-input>
+      </el-form-item>
+      <el-row :gutter="16">
+        <el-col :span="12">
+          <el-form-item label="优先级">
+            <el-select v-model="editingTask.priority" style="width:100%;">
+              <el-option label="高" value="high"></el-option>
+              <el-option label="中" value="medium"></el-option>
+              <el-option label="低" value="low"></el-option>
+            </el-select>
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item label="截止时间">
+            <el-date-picker v-model="editingTask.deadline" type="date" placeholder="选择日期" format="MM月DD日" value-format="MM月DD日" style="width:100%;"></el-date-picker>
+          </el-form-item>
+        </el-col>
+      </el-row>
+    </el-form>
+    <template #footer>
+      <el-button v-if="editingTask.id" type="danger" :icon="Delete" @click="deleteTask" style="float:left;">删除</el-button>
+      <el-button @click="dialogVisible=false">取消</el-button>
+      <el-button type="primary" @click="saveTask">保存</el-button>
+    </template>
+  </el-dialog>
+
+  <!-- Move task popover (status switch) -->
+  <el-dialog v-model="moveDialogVisible" title="切换任务状态" width="360px">
+    <p style="margin:0 0 16px;font-size:14px;">将「{{moveTask.title}}」移动到：</p>
+    <el-radio-group v-model="moveTarget" style="display:flex;flex-direction:column;gap:12px;">
+      <el-radio v-for="col in columns" :key="col.status" :value="col.status" style="height:36px;">
+        <span class="status-dot" :style="{background: col.color}"></span> {{col.title}}
+      </el-radio>
+    </el-radio-group>
+    <template #footer>
+      <el-button @click="moveDialogVisible=false">取消</el-button>
+      <el-button type="primary" @click="confirmMove">确认</el-button>
+    </template>
+  </el-dialog>
+</div>
+
+<script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+<script src="https://unpkg.com/element-plus"></script>
+<script src="https://unpkg.com/@element-plus/icons-vue"></script>
+<script>
+const { createApp, ref, reactive, computed } = Vue;
+const { ElMessage } = ElementPlus;
+
+const App = {
+  setup() {
+    const columns = [
+      { status: 'todo', title: '待办', color: '#58748f' },
+      { status: 'doing', title: '进行中', color: '#38a5ff' },
+      { status: 'done', title: '已完成', color: '#1f9a67' }
+    ];
+    const allTasks = reactive([
+      { id: 1, title: '组建参赛团队并确认分工', description: '确定5名成员，分配开发、设计、文案等角色', status: 'done', priority: 'high', deadline: '7月25日', source: 'ai' },
+      { id: 2, title: '填写并提交报名表', description: '下载模板填写并加盖学院公章', status: 'done', priority: 'high', deadline: '7月26日', source: 'ai' },
+      { id: 3, title: '撰写项目说明书', description: '不超过20页，包含技术路线、实施方案和预算', status: 'doing', priority: 'high', deadline: '7月28日', source: 'ai' },
+      { id: 4, title: '录制产品演示视频', description: '3-5分钟，须含产品原型展示', status: 'todo', priority: 'medium', deadline: '7月29日', source: 'ai' },
+      { id: 5, title: '准备团队成员信息表', description: null, status: 'todo', priority: 'low', deadline: null, source: 'ai' },
+      { id: 6, title: '联系指导老师审核预算', description: '发送预算明细请老师确认', status: 'doing', priority: 'medium', deadline: '7月27日', source: 'ai' },
+      { id: 7, title: '准备答辩PPT', description: '准备5分钟答辩演示', status: 'todo', priority: 'medium', deadline: '7月30日', source: 'manual' }
+    ]);
+
+    const getColumnTasks = (status) => allTasks.filter(t => t.status === status);
+    const doneCount = computed(() => allTasks.filter(t => t.status === 'done').length);
+    const progressPct = computed(() => Math.round(doneCount.value / allTasks.length * 100));
+
+    const priorityType = (p) => ({ high: 'danger', medium: 'warning', low: 'info' }[p] || 'info');
+    const priorityText = (p) => ({ high: '高', medium: '中', low: '低' }[p] || p);
+
+    // Add/Edit dialog
+    const dialogVisible = ref(false);
+    const editingTask = reactive({ id: null, title: '', description: '', priority: 'medium', deadline: '', status: 'todo' });
+    const openAddTask = (status) => {
+      Object.assign(editingTask, { id: null, title: '', description: '', priority: 'medium', deadline: '', status });
+      dialogVisible.value = true;
+    };
+    const openEditTask = (task) => {
+      Object.assign(editingTask, JSON.parse(JSON.stringify(task)));
+      dialogVisible.value = true;
+    };
+    const saveTask = () => {
+      if (!editingTask.title.trim()) { ElMessage.warning('请输入任务标题'); return; }
+      if (editingTask.id) {
+        const idx = allTasks.findIndex(t => t.id === editingTask.id);
+        if (idx >= 0) Object.assign(allTasks[idx], JSON.parse(JSON.stringify(editingTask)));
+        ElMessage.success('任务已更新');
+      } else {
+        allTasks.push({ ...JSON.parse(JSON.stringify(editingTask)), id: Date.now(), source: 'manual' });
+        ElMessage.success('任务已添加');
+      }
+      dialogVisible.value = false;
+    };
+    const deleteTask = () => {
+      const idx = allTasks.findIndex(t => t.id === editingTask.id);
+      if (idx >= 0) allTasks.splice(idx, 1);
+      dialogVisible.value = false;
+      ElMessage.success('任务已删除');
+    };
+
+    // Move dialog (status switch)
+    const moveDialogVisible = ref(false);
+    const moveTask = reactive({});
+    const moveTarget = ref('');
+    const openMoveTask = (task) => {
+      Object.assign(moveTask, task);
+      moveTarget.value = task.status;
+      moveDialogVisible.value = true;
+    };
+    const confirmMove = () => {
+      const idx = allTasks.findIndex(t => t.id === moveTask.id);
+      if (idx >= 0) allTasks[idx].status = moveTarget.value;
+      moveDialogVisible.value = false;
+      ElMessage.success('状态已更新');
+    };
+
+    return { columns, allTasks, getColumnTasks, doneCount, progressPct, priorityType, priorityText,
+      dialogVisible, editingTask, openAddTask, openEditTask, saveTask, deleteTask,
+      moveDialogVisible, moveTask, moveTarget, openMoveTask, confirmMove,
+      Plus: ElementPlusIconsVue.Plus, Delete: ElementPlusIconsVue.Delete,
+      MoreFilled: ElementPlusIconsVue.MoreFilled, EditPen: ElementPlusIconsVue.EditPen, Box: ElementPlusIconsVue.Box };
+  }
+};
+const app = createApp(App);
+app.use(ElementPlus);
+for (const [key, comp] of Object.entries(ElementPlusIconsVue)) app.component(key, comp);
+app.mount('#app');
+</script>
+</body>
+</html>
