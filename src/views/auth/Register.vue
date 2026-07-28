@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage, ElForm, ElFormItem, ElInput, ElButton } from 'element-plus'
+import { ElMessage, type FormInstance } from 'element-plus'
 import { User, Message, Lock } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
 const authStore = useAuthStore()
 
-const formRef = ref<InstanceType<typeof ElForm>>()
+const formRef = ref<FormInstance>()
 const loading = ref(false)
 const form = reactive({
   nickname: '',

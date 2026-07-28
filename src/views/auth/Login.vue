@@ -1,14 +1,7 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import {
-  ElMessage,
-  ElForm,
-  ElFormItem,
-  ElInput,
-  ElButton,
-  ElCheckbox,
-} from 'element-plus'
+import { ElMessage, type FormInstance } from 'element-plus'
 import { Message, Lock } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { getLastEmail, setLastEmail, clearLastEmail } from '@/utils/storage'
@@ -17,7 +10,7 @@ const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
 
-const formRef = ref<InstanceType<typeof ElForm>>()
+const formRef = ref<FormInstance>()
 const loading = ref(false)
 const remember = ref(true)
 const form = reactive({
