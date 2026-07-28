@@ -1,9 +1,17 @@
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { ElMessage, ElForm, ElFormItem, ElInput, ElButton } from 'element-plus'
+import {
+  ElMessage,
+  ElForm,
+  ElFormItem,
+  ElInput,
+  ElButton,
+  ElCheckbox,
+} from 'element-plus'
 import { Message, Lock } from '@element-plus/icons-vue'
-import { useAuthStore } from '../../stores/auth'
+import { useAuthStore } from '@/stores/auth'
+import { getLastEmail, setLastEmail, clearLastEmail } from '@/utils/storage'
 
 const router = useRouter()
 const route = useRoute()
@@ -11,8 +19,9 @@ const authStore = useAuthStore()
 
 const formRef = ref<InstanceType<typeof ElForm>>()
 const loading = ref(false)
+const remember = ref(true)
 const form = reactive({
-  email: 'zmk@example.com',
+  email: '',
   password: '',
 })
 
@@ -27,17 +36,34 @@ const rules = {
   ],
 }
 
+// 退出登录后保留邮箱：进入登录页时预填，免去重复输入邮箱
+onMounted(() => {
+  const last = getLastEmail()
+  if (last) {
+    form.email = last
+    remember.value = true
+  } else {
+    remember.value = false
+  }
+})
+
 const handleSubmit = async () => {
   const valid = await formRef.value?.validate().catch(() => false)
   if (!valid) return
   loading.value = true
   try {
     await authStore.login({ email: form.email, password: form.password })
+    // 登录成功后按选择保存/清除邮箱
+    if (remember.value) {
+      setLastEmail(form.email)
+    } else {
+      clearLastEmail()
+    }
     ElMessage.success('登录成功')
     const redirect = (route.query.redirect as string) || '/dashboard'
     router.push(redirect)
-  } catch (e: any) {
-    ElMessage.error(e?.message || '登录失败，请重试')
+  } catch {
+    // 请求层已统一提示错误，这里只负责结束提交流程
   } finally {
     loading.value = false
   }
@@ -78,11 +104,14 @@ const handleSubmit = async () => {
           />
         </el-form-item>
         <el-form-item>
+          <el-checkbox v-model="remember">记住邮箱</el-checkbox>
+        </el-form-item>
+        <el-form-item>
           <el-button
+            class="auth-submit"
             type="primary"
             native-type="submit"
             :loading="loading"
-            style="width: 100%; height: 44px; font-size: 15px"
           >
             登 录
           </el-button>
@@ -91,73 +120,93 @@ const handleSubmit = async () => {
       <div class="auth-footer">
         还没有账号？<router-link to="/register">立即注册</router-link>
       </div>
-      <div class="auth-back">
-        <router-link to="/">&larr; 返回首页</router-link>
-      </div>
     </div>
   </div>
 </template>
 
-<style scoped>
+<style lang="scss" scoped>
 .auth-wrapper {
   min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #e8f5ff 0%, #f2f6fa 50%, #ffffff 100%);
+  background: linear-gradient(
+    135deg,
+    var(--color-primary-soft) 0%,
+    var(--color-bg) 50%,
+    var(--color-surface) 100%
+  );
   padding: 40px 20px;
 }
+
 .auth-card {
   width: 100%;
   max-width: 420px;
-  background: #ffffff;
-  border-radius: 16px;
-  box-shadow: 0 8px 32px rgba(22, 50, 75, 0.1);
+  background: var(--color-surface);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
   padding: 40px 36px;
 }
+
 .auth-logo {
   text-align: center;
   margin-bottom: 28px;
+
+  .logo-icon-lg {
+    width: 56px;
+    height: 56px;
+    border-radius: 14px;
+    background: linear-gradient(
+      135deg,
+      var(--color-primary),
+      var(--color-primary-deep)
+    );
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 26px;
+    font-weight: 700;
+    margin-bottom: 12px;
+  }
+
+  h1 {
+    font-size: 24px;
+    font-weight: 700;
+    margin: 0 0 4px;
+    color: var(--color-text);
+  }
+
+  p {
+    font-size: 14px;
+    color: var(--color-text-soft);
+    margin: 0;
+  }
 }
-.auth-logo .logo-icon-lg {
-  width: 56px;
-  height: 56px;
-  border-radius: 14px;
-  background: linear-gradient(135deg, #38a5ff, #1f7fd0);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: #fff;
-  font-size: 26px;
-  font-weight: 700;
-  margin-bottom: 12px;
+
+.auth-submit {
+  width: 100%;
+  height: 44px;
+  font-size: 15px;
 }
-.auth-logo h1 {
-  font-size: 24px;
-  font-weight: 700;
-  margin: 0 0 4px;
-  color: #16324b;
-}
-.auth-logo p {
-  font-size: 14px;
-  color: #58748f;
-  margin: 0;
-}
+
 .auth-footer {
   text-align: center;
   font-size: 14px;
-  color: #58748f;
+  color: var(--color-text-soft);
 }
+
 .auth-back {
   margin-top: 24px;
   text-align: center;
-}
-.auth-back a {
-  font-size: 13px;
-  color: #58748f;
-  text-decoration: none;
-}
-.auth-back a:hover {
-  color: #1f7fd0;
+
+  a {
+    font-size: 13px;
+    color: var(--color-text-soft);
+
+    &:hover {
+      color: var(--color-primary-deep);
+    }
+  }
 }
 </style>

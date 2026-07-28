@@ -1,0 +1,41 @@
+// TaskPilot 主题变量
+// 主色 #38a5ff 及周边配色，集中管理供全局与组件复用
+:root {
+  // 品牌主色
+  --color-primary: #38a5ff;
+  --color-primary-deep: #1f7fd0;
+  --color-primary-soft: #e8f5ff;
+
+  // 背景与表面
+  --color-bg: #f2f6fa;
+  --color-surface: #ffffff;
+
+  // 文本
+  --color-text: #16324b;
+  --color-text-soft: #58748f;
+
+  // 边框与状态色
+  --color-border: #d8e5f1;
+  --color-success: #1f9a67;
+  --color-warning: #ef9f39;
+  --color-danger: #e5604c;
+
+  // 结构
+  --radius-card: 16px;
+  --radius-control: 10px;
+  --shadow-card: 0 8px 32px rgba(22, 50, 75, 0.1);
+  --shadow-hover: 0 12px 40px rgba(22, 50, 75, 0.16);
+
+  --font-sans:
+    system-ui, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'PingFang SC',
+    'Microsoft YaHei', sans-serif;
+
+  // Element Plus 主色覆盖，使 el-button(type=primary) 等组件统一为品牌蓝
+  --el-color-primary: #38a5ff;
+  --el-color-primary-light-3: #66baff;
+  --el-color-primary-light-5: #9bd0ff;
+  --el-color-primary-light-7: #c6e4ff;
+  --el-color-primary-light-8: #d9eeff;
+  --el-color-primary-light-9: #eaf6ff;
+  --el-color-primary-dark-2: #2b8ad0;
+}

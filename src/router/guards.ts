@@ -1,12 +1,12 @@
 import type { Router } from 'vue-router'
-import { useAuthStore } from '../stores/auth'
+import { useAuthStore } from '@/stores/auth'
 
 const publicPages = ['/login', '/register']
 
 export function setupGuards(router: Router) {
   router.beforeEach((to) => {
     const auth = useAuthStore()
-    const loggedIn = !!auth.token
+    const loggedIn = auth.isLoggedIn
 
     // 未登录访问受保护页面 -> 跳登录，并带上 redirect 以便登录后回跳
     if (!loggedIn && !publicPages.includes(to.path)) {
