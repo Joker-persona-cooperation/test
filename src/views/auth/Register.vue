@@ -106,9 +106,6 @@ const handleSubmit = async () => {
       <div class="auth-footer">
         已有账号？<router-link to="/login">返回登录</router-link>
       </div>
-      <div class="auth-back">
-        <router-link to="/">&larr; 返回首页</router-link>
-      </div>
     </div>
   </div>
 </template>
