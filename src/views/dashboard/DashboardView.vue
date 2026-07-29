@@ -1,30 +1,14 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
 const authStore = useAuthStore()
-const loadingUser = ref(false)
 
 async function handleLogout() {
   await authStore.logout()
   router.push('/login')
 }
-
-onMounted(async () => {
-  // 进入工作台后刷新一次用户信息，确保本地缓存与服务端会话一致
-  if (authStore.isLoggedIn) {
-    loadingUser.value = true
-    try {
-      await authStore.fetchProfile()
-    } catch {
-      // 401 会由请求层自动刷新或跳转登录；这里不再额外打断页面流程
-    } finally {
-      loadingUser.value = false
-    }
-  }
-})
 </script>
 
 <template>
@@ -52,7 +36,6 @@ onMounted(async () => {
             authStore.userInfo.email
           }}）
         </p>
-        <p v-else-if="loadingUser" class="welcome-tip">正在加载用户信息…</p>
         <p class="welcome-tip">
           这里是工作台首页，后续将提供文档上传、AI 解析与项目任务管理入口。
         </p>

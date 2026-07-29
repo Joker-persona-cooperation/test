@@ -68,9 +68,10 @@ function redirectToLogin() {
 
 async function doRefresh(): Promise<string> {
   // 用原始实例发起 refresh，避免再走响应拦截的 401 刷新逻辑造成循环
-  const res = await request.post<
-    Envelope<{ access_token: string; expires_in_sec: number }>
-  >(REFRESH_URL)
+  const res =
+    await request.post<
+      Envelope<{ access_token: string; expires_in_sec: number }>
+    >(REFRESH_URL)
   const token = res.data?.data?.access_token
   if (!token) throw new Error('刷新会话失败')
   setToken(token)
@@ -91,8 +92,7 @@ request.interceptors.response.use(
   async (error: AxiosError<Envelope<unknown>>) => {
     const status = error.response?.status
     const original = error.config as
-      | (InternalAxiosRequestConfig & { _retried?: boolean })
-      | undefined
+      (InternalAxiosRequestConfig & { _retried?: boolean }) | undefined
     const url = original?.url || ''
     const isRefreshCall = url.includes(REFRESH_URL)
     const isPublicCall = PUBLIC_PATHS.some((p) => url.includes(p))

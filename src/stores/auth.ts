@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { isAxiosError } from 'axios'
 import * as authApi from '@/api/auth'
 import {
   getToken,
@@ -20,6 +21,12 @@ export const useAuthStore = defineStore('auth', () => {
   let bootstrapPromise: Promise<void> | null = null
 
   const isLoggedIn = computed(() => !!token.value)
+
+  function shouldClearSessionOnBootstrap(error: unknown): boolean {
+    if (!isAxiosError(error)) return false
+    const status = error.response?.status
+    return status === 401
+  }
 
   function applySession(res: authApi.AuthResult) {
     token.value = res.access_token
@@ -66,8 +73,12 @@ export const useAuthStore = defineStore('auth', () => {
         // 2. 仅 Cookie 有效时由后端 Cookie 鉴权成功
         // 3. access 失效但 refresh 有效时由请求层自动 refresh 后重试成功
         await fetchProfile()
-      } catch {
-        clearSession()
+      } catch (error) {
+        // 仅在服务端明确判定会话无效时清理本地态；
+        // 5xx、网络抖动等场景保留本地状态，交由请求层提示用户。
+        if (shouldClearSessionOnBootstrap(error)) {
+          clearSession()
+        }
       } finally {
         bootstrapping.value = false
         bootstrapped.value = true

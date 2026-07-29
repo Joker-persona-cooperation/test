@@ -96,7 +96,7 @@ const handleSubmit = async () => {
             show-password
           />
         </el-form-item>
-        <el-form-item>
+        <el-form-item class="remember-email">
           <el-checkbox v-model="remember">记住邮箱</el-checkbox>
         </el-form-item>
         <el-form-item>
@@ -175,6 +175,10 @@ const handleSubmit = async () => {
     color: var(--color-text-soft);
     margin: 0;
   }
+}
+
+.remember-email {
+  margin-bottom: 18px;
 }
 
 .auth-submit {
