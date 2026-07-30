@@ -8,9 +8,9 @@ import { useAuthStore } from '@/stores/auth'
 const router = useRouter()
 const authStore = useAuthStore()
 
-const formRef = ref<FormInstance>()
+const registerFormRef = ref<FormInstance>()
 const loading = ref(false)
-const form = reactive({
+const registerForm = reactive({
   nickname: '',
   email: '',
   password: '',
@@ -32,14 +32,14 @@ const rules = {
 }
 
 const handleSubmit = async () => {
-  const valid = await formRef.value?.validate().catch(() => false)
+  const valid = await registerFormRef.value?.validate().catch(() => false)
   if (!valid) return
   loading.value = true
   try {
     await authStore.register({
-      nickname: form.nickname,
-      email: form.email,
-      password: form.password,
+      nickname: registerForm.nickname,
+      email: registerForm.email,
+      password: registerForm.password,
     })
     ElMessage.success('注册成功')
     router.push('/dashboard')
@@ -60,8 +60,8 @@ const handleSubmit = async () => {
         <p>创建账号，开始拆解你的任务文档</p>
       </div>
       <el-form
-        ref="formRef"
-        :model="form"
+        ref="registerFormRef"
+        :model="registerForm"
         :rules="rules"
         label-position="top"
         size="large"
@@ -69,7 +69,7 @@ const handleSubmit = async () => {
       >
         <el-form-item label="昵称" prop="nickname">
           <el-input
-            v-model="form.nickname"
+            v-model="registerForm.nickname"
             placeholder="请输入昵称"
             :prefix-icon="User"
             clearable
@@ -77,7 +77,7 @@ const handleSubmit = async () => {
         </el-form-item>
         <el-form-item label="邮箱" prop="email">
           <el-input
-            v-model="form.email"
+            v-model="registerForm.email"
             placeholder="请输入邮箱"
             :prefix-icon="Message"
             clearable
@@ -85,7 +85,7 @@ const handleSubmit = async () => {
         </el-form-item>
         <el-form-item label="密码" prop="password">
           <el-input
-            v-model="form.password"
+            v-model="registerForm.password"
             type="password"
             placeholder="请设置密码（至少8位）"
             :prefix-icon="Lock"

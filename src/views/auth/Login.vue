@@ -10,10 +10,10 @@ const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
 
-const formRef = ref<FormInstance>()
+const loginFormRef = ref<FormInstance>()
 const loading = ref(false)
 const remember = ref(true)
-const form = reactive({
+const loginForm = reactive({
   email: '',
   password: '',
 })
@@ -33,7 +33,7 @@ const rules = {
 onMounted(() => {
   const last = getLastEmail()
   if (last) {
-    form.email = last
+    loginForm.email = last
     remember.value = true
   } else {
     remember.value = false
@@ -41,14 +41,17 @@ onMounted(() => {
 })
 
 const handleSubmit = async () => {
-  const valid = await formRef.value?.validate().catch(() => false)
+  const valid = await loginFormRef.value?.validate().catch(() => false)
   if (!valid) return
   loading.value = true
   try {
-    await authStore.login({ email: form.email, password: form.password })
+    await authStore.login({
+      email: loginForm.email,
+      password: loginForm.password,
+    })
     // 登录成功后按选择保存/清除邮箱
     if (remember.value) {
-      setLastEmail(form.email)
+      setLastEmail(loginForm.email)
     } else {
       clearLastEmail()
     }
@@ -72,8 +75,8 @@ const handleSubmit = async () => {
         <p>把要求文档变成能执行的任务清单</p>
       </div>
       <el-form
-        ref="formRef"
-        :model="form"
+        ref="loginFormRef"
+        :model="loginForm"
         :rules="rules"
         label-position="top"
         size="large"
@@ -81,7 +84,7 @@ const handleSubmit = async () => {
       >
         <el-form-item label="邮箱" prop="email">
           <el-input
-            v-model="form.email"
+            v-model="loginForm.email"
             placeholder="请输入邮箱"
             :prefix-icon="Message"
             clearable
@@ -89,7 +92,7 @@ const handleSubmit = async () => {
         </el-form-item>
         <el-form-item label="密码" prop="password">
           <el-input
-            v-model="form.password"
+            v-model="loginForm.password"
             type="password"
             placeholder="请输入密码（至少8位）"
             :prefix-icon="Lock"
