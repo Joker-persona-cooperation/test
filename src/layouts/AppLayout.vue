@@ -1,51 +1,40 @@
 <script setup lang="ts">
-// TODO: 主应用布局容器
-// 结构：顶部导航栏(AppHeader) + 主体(左侧菜单 AppSidebar + 右侧 AppTabs + 主区域 router-view)
-// 后续接入路由时，业务页（dashboard / parse / projects 等）作为该布局的子路由
+// 主应用布局容器：左侧全高 AppSidebar + 右侧主区(AppHeader + 内容区 router-view)
 import AppHeader from '@/components/layout/AppHeader.vue'
 import AppSidebar from '@/components/layout/AppSidebar.vue'
-import AppTabs from '@/components/layout/AppTabs.vue'
 </script>
 
 <template>
   <div class="app-layout">
-    <AppHeader />
-    <div class="app-layout__body">
-      <AppSidebar />
-      <div class="app-layout__main">
-        <AppTabs />
-        <main class="app-layout__content">
-          <router-view />
-        </main>
-      </div>
+    <AppSidebar />
+    <div class="app-main">
+      <AppHeader />
+      <main class="app-content">
+        <router-view />
+      </main>
     </div>
   </div>
 </template>
 
 <style lang="scss" scoped>
 .app-layout {
-  min-height: 100vh;
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--color-bg);
+}
+
+.app-main {
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  background: var(--color-bg);
+  overflow: hidden;
+}
 
-  &__body {
-    flex: 1;
-    display: flex;
-    overflow: hidden;
-  }
-
-  &__main {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-  }
-
-  &__content {
-    flex: 1;
-    overflow: auto;
-    padding: 16px;
-  }
+.app-content {
+  flex: 1;
+  overflow: auto;
+  padding: 28px;
 }
 </style>
