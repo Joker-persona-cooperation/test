@@ -11,15 +11,19 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
-    AppHeader: typeof import('./src/components/layout/AppHeader.vue')['default']
-    AppSidebar: typeof import('./src/components/layout/AppSidebar.vue')['default']
-    AppTabs: typeof import('./src/components/layout/AppTabs.vue')['default']
     ElButton: typeof import('element-plus/es')['ElButton']
     ElCheckbox: typeof import('element-plus/es')['ElCheckbox']
     ElForm: typeof import('element-plus/es')['ElForm']
     ElFormItem: typeof import('element-plus/es')['ElFormItem']
+    ElIcon: typeof import('element-plus/es')['ElIcon']
     ElInput: typeof import('element-plus/es')['ElInput']
+    ElTable: typeof import('element-plus/es')['ElTable']
+    ElTableColumn: typeof import('element-plus/es')['ElTableColumn']
+    ElTag: typeof import('element-plus/es')['ElTag']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
+    WorkspaceHeader: typeof import('./src/components/layout/WorkspaceHeader.vue')['default']
+    WorkspaceNavigation: typeof import('./src/components/layout/WorkspaceNavigation.vue')['default']
+    WorkspacePageHeader: typeof import('./src/components/layout/WorkspacePageHeader.vue')['default']
   }
 }
