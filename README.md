@@ -56,17 +56,22 @@ TaskPilot 的产品目标是把“要求文档”转换成可执行的结构化�
 ```text
 taskpilot-web/
 ├── src/
-│   ├── api/
+│   ├── api/                     # 请求层：client.ts 为 axios 实例，其余按资源拆分
 │   │   ├── auth.ts
-│   │   └── index.ts
-│   ├── components/
-│   │   └── layout/
-│   ├── layouts/
-│   ├── router/
+│   │   └── client.ts
+│   ├── components/common/        # 跨模块复用的展示组件（AppPanel、AppStatCard）
+│   ├── composables/             # 可复用逻辑（useGreeting、useWorkspaceSidebar）
+│   ├── constants/               # 静态配置：导航、应用名、解析状态映射
+│   ├── layouts/workspace/       # 工作台布局与其私有子组件
+│   │   ├── components/
+│   │   └── WorkspaceLayout.vue
+│   ├── mocks/                   # 演示数据，接口接入后逐个删除
+│   ├── router/                  # index.ts 装配、routes.ts 路由表、guards.ts 守卫
 │   ├── stores/
 │   ├── styles/
+│   ├── types/                   # 全局类型增强（RouteMeta 等）
 │   ├── utils/
-│   ├── views/
+│   ├── views/                   # 页面级组件，统一 *View.vue 后缀
 │   ├── App.vue
 │   └── main.ts
 ├── .env.development
@@ -77,21 +82,29 @@ taskpilot-web/
 └── vite.config.ts
 ```
 
-说明：
+约定：
 
-- 文档只描述当前仓库中真实存在的结构，不提前声明未落地目录
+- 页面级组件统一 `*View.vue` 后缀，只被路由引用
+- 只服务单一布局/页面的组件放在其同级 `components/` 下，跨模块复用才提到 `src/components/common/`
+- `mocks/` 是临时目录，对应模块接入真实接口后直接删除该文件
 - 后续新增 `document.ts`、`parseJob.ts`、`parseResult.ts`、`project.ts`、`task.ts` 后，再同步补齐文档
 
 ---
 
 ## 当前路由
 
-| 路由         | 页面                    | 说明                                   |
-| ------------ | ----------------------- | -------------------------------------- |
-| `/login`     | `Login.vue`             | 登录页                                 |
-| `/register`  | `Register.vue`          | 注册页                                 |
-| `/dashboard` | `DashboardHomeView.vue` | 工作台首页，展示当前阶段与下一优先闭环 |
-| `*`          | `NotFound.vue`          | 404 页面                               |
+| 路由         | 页面                        | 说明                             |
+| ------------ | --------------------------- | -------------------------------- |
+| `/login`     | `LoginView.vue`             | 登录页                           |
+| `/register`  | `RegisterView.vue`          | 注册页                           |
+| `/dashboard` | `DashboardView.vue`         | 工作台首页，当前使用演示数据     |
+| `/parse/new` | `ModulePlaceholderView.vue` | 占位，待接入 documents/parse-jobs |
+| `/projects`  | `ModulePlaceholderView.vue` | 占位，待接入 projects/tasks      |
+| `/history`   | `ModulePlaceholderView.vue` | 占位，待接入 history             |
+| `/profile`   | `ModulePlaceholderView.vue` | 占位，待完善账号设置             |
+| `*`          | `NotFoundView.vue`          | 404 页面                         |
+
+占位页的标题、描述、待接入接口清单全部写在路由 `meta` 中，由 `ModulePlaceholderView` 统一渲染。
 
 ---
 
@@ -108,11 +121,10 @@ taskpilot-web/
 
 ### 2. 工作台骨架
 
-- `WorkspaceLayout`
-- `WorkspaceHeader`
-- `WorkspaceNavigation`
-- `WorkspacePageHeader`
-- `DashboardHomeView`
+- `WorkspaceLayout`：侧边栏 + 顶栏 + 内容区，窄屏侧边栏转为抽屉
+- `WorkspaceSidebar`：唯一的模块导航，支持折叠且折叠态持久化
+- `WorkspaceTopbar`：当前页标题、状态标签、新建解析主动作、用户菜单
+- `DashboardView`：概览指标、最近解析记录、今日提醒
 
 ---
 

@@ -5,6 +5,7 @@ import { ElMessage, type FormInstance } from 'element-plus'
 import { Message, Lock } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { getLastEmail, setLastEmail, clearLastEmail } from '@/utils/storage'
+import { APP_NAME, APP_SLOGAN } from '@/constants/app'
 
 const router = useRouter()
 const route = useRoute()
@@ -67,12 +68,12 @@ const handleSubmit = async () => {
 </script>
 
 <template>
-  <div class="auth-wrapper">
+  <div class="auth-page">
     <div class="auth-card">
-      <div class="auth-logo">
-        <div class="logo-icon-lg">T</div>
-        <h1>TaskPilot</h1>
-        <p>把要求文档变成能执行的任务清单</p>
+      <div class="auth-brand">
+        <div class="auth-brand__logo" aria-hidden="true">T</div>
+        <h1>{{ APP_NAME }}</h1>
+        <p>{{ APP_SLOGAN }}</p>
       </div>
       <el-form
         ref="loginFormRef"
@@ -121,92 +122,8 @@ const handleSubmit = async () => {
 </template>
 
 <style lang="scss" scoped>
-.auth-wrapper {
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(
-    135deg,
-    var(--color-primary-soft) 0%,
-    var(--color-bg) 50%,
-    var(--color-surface) 100%
-  );
-  padding: 40px 20px;
-}
-
-.auth-card {
-  width: 100%;
-  max-width: 420px;
-  background: var(--color-surface);
-  border-radius: var(--radius-card);
-  box-shadow: var(--shadow-card);
-  padding: 40px 36px;
-}
-
-.auth-logo {
-  text-align: center;
-  margin-bottom: 28px;
-
-  .logo-icon-lg {
-    width: 56px;
-    height: 56px;
-    border-radius: 14px;
-    background: linear-gradient(
-      135deg,
-      var(--color-primary),
-      var(--color-primary-deep)
-    );
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    color: #fff;
-    font-size: 26px;
-    font-weight: 700;
-    margin-bottom: 12px;
-  }
-
-  h1 {
-    font-size: 24px;
-    font-weight: 700;
-    margin: 0 0 4px;
-    color: var(--color-text);
-  }
-
-  p {
-    font-size: 14px;
-    color: var(--color-text-soft);
-    margin: 0;
-  }
-}
-
+// 页面骨架样式见 styles/auth.scss，此处只留登录页独有的部分
 .remember-email {
   margin-bottom: 18px;
-}
-
-.auth-submit {
-  width: 100%;
-  height: 44px;
-  font-size: 15px;
-}
-
-.auth-footer {
-  text-align: center;
-  font-size: 14px;
-  color: var(--color-text-soft);
-}
-
-.auth-back {
-  margin-top: 24px;
-  text-align: center;
-
-  a {
-    font-size: 13px;
-    color: var(--color-text-soft);
-
-    &:hover {
-      color: var(--color-primary-deep);
-    }
-  }
 }
 </style>

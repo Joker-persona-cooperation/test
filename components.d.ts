@@ -11,8 +11,14 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    AppPanel: typeof import('./src/components/common/AppPanel.vue')['default']
+    AppStatCard: typeof import('./src/components/common/AppStatCard.vue')['default']
     ElButton: typeof import('element-plus/es')['ElButton']
     ElCheckbox: typeof import('element-plus/es')['ElCheckbox']
+    ElDrawer: typeof import('element-plus/es')['ElDrawer']
+    ElDropdown: typeof import('element-plus/es')['ElDropdown']
+    ElDropdownItem: typeof import('element-plus/es')['ElDropdownItem']
+    ElDropdownMenu: typeof import('element-plus/es')['ElDropdownMenu']
     ElForm: typeof import('element-plus/es')['ElForm']
     ElFormItem: typeof import('element-plus/es')['ElFormItem']
     ElIcon: typeof import('element-plus/es')['ElIcon']
@@ -22,8 +28,5 @@ declare module 'vue' {
     ElTag: typeof import('element-plus/es')['ElTag']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
-    WorkspaceHeader: typeof import('./src/components/layout/WorkspaceHeader.vue')['default']
-    WorkspaceNavigation: typeof import('./src/components/layout/WorkspaceNavigation.vue')['default']
-    WorkspacePageHeader: typeof import('./src/components/layout/WorkspacePageHeader.vue')['default']
   }
 }

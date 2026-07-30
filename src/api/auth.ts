@@ -1,5 +1,5 @@
 // 账号相关接口，对接后端 /api/v1/auth 与 /api/v1/users
-import { http } from './index'
+import { http } from './client'
 
 export interface LoginParams {
   email: string

@@ -9,7 +9,7 @@ const router = useRouter()
     <div class="not-found-card">
       <div class="code">404</div>
       <p class="desc">页面不存在或已被移除</p>
-      <el-button type="primary" @click="router.push('/dashboard')">
+      <el-button type="primary" @click="router.push({ name: 'dashboard' })">
         返回工作台
       </el-button>
     </div>

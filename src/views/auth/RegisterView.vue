@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage, type FormInstance } from 'element-plus'
 import { User, Message, Lock } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
+import { APP_NAME } from '@/constants/app'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -52,11 +53,11 @@ const handleSubmit = async () => {
 </script>
 
 <template>
-  <div class="auth-wrapper">
+  <div class="auth-page">
     <div class="auth-card">
-      <div class="auth-logo">
-        <div class="logo-icon-lg">T</div>
-        <h1>注册 TaskPilot</h1>
+      <div class="auth-brand">
+        <div class="auth-brand__logo" aria-hidden="true">T</div>
+        <h1>注册 {{ APP_NAME }}</h1>
         <p>创建账号，开始拆解你的任务文档</p>
       </div>
       <el-form
@@ -109,90 +110,3 @@ const handleSubmit = async () => {
     </div>
   </div>
 </template>
-
-<style lang="scss" scoped>
-.auth-wrapper {
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(
-    135deg,
-    var(--color-primary-soft) 0%,
-    var(--color-bg) 50%,
-    var(--color-surface) 100%
-  );
-  padding: 40px 20px;
-}
-
-.auth-card {
-  width: 100%;
-  max-width: 420px;
-  background: var(--color-surface);
-  border-radius: var(--radius-card);
-  box-shadow: var(--shadow-card);
-  padding: 40px 36px;
-}
-
-.auth-logo {
-  text-align: center;
-  margin-bottom: 28px;
-
-  .logo-icon-lg {
-    width: 56px;
-    height: 56px;
-    border-radius: 14px;
-    background: linear-gradient(
-      135deg,
-      var(--color-primary),
-      var(--color-primary-deep)
-    );
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    color: #fff;
-    font-size: 26px;
-    font-weight: 700;
-    margin-bottom: 12px;
-  }
-
-  h1 {
-    font-size: 24px;
-    font-weight: 700;
-    margin: 0 0 4px;
-    color: var(--color-text);
-  }
-
-  p {
-    font-size: 14px;
-    color: var(--color-text-soft);
-    margin: 0;
-  }
-}
-
-.auth-submit {
-  width: 100%;
-  height: 44px;
-  font-size: 15px;
-}
-
-.auth-footer {
-  text-align: center;
-  font-size: 14px;
-  color: var(--color-text-soft);
-}
-
-.auth-back {
-  margin-top: 24px;
-  text-align: center;
-
-  a {
-    font-size: 13px;
-    color: var(--color-text-soft);
-
-    &:hover {
-      color: var(--color-primary-deep);
-    }
-  }
-}
-</style>
