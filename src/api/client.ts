@@ -5,13 +5,8 @@ import axios, {
   type InternalAxiosRequestConfig,
 } from 'axios'
 import { ElMessage } from 'element-plus'
-import {
-  getToken,
-  setToken,
-  removeToken,
-  removeUser,
-  getCsrfToken,
-} from '@/utils/storage'
+import { getToken, setToken, getCsrfToken } from '@/utils/storage'
+import { ApiError, SessionExpiredError } from './errors'
 
 // 后端统一响应信封：{ code, message, data }
 export interface Envelope<T> {
@@ -22,6 +17,22 @@ export interface Envelope<T> {
 
 const PUBLIC_PATHS = ['/login', '/register']
 const REFRESH_URL = '/auth/refresh'
+
+// 会话失效时的善后动作由上层注入（main.ts 里绑定 store.clearSession + router.push）。
+// 请求层不 import stores/ 与 router：一是避免 api → stores → api 的循环依赖，
+// 二是保证请求层可以脱离 Vue 运行时单测。
+type SessionExpiredHandler = (error: SessionExpiredError) => void
+
+let onSessionExpired: SessionExpiredHandler | null = null
+
+export function setSessionExpiredHandler(handler: SessionExpiredHandler) {
+  onSessionExpired = handler
+}
+
+function notifySessionExpired(error: SessionExpiredError) {
+  onSessionExpired?.(error)
+  return error
+}
 
 const request = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL ?? '',
@@ -58,14 +69,6 @@ function flushQueue(token: string | null, err: unknown | null) {
   pendingQueue = []
 }
 
-function redirectToLogin() {
-  removeToken()
-  removeUser()
-  if (!PUBLIC_PATHS.includes(window.location.pathname)) {
-    window.location.href = '/login'
-  }
-}
-
 async function doRefresh(): Promise<string> {
   // 用原始实例发起 refresh，避免再走响应拦截的 401 刷新逻辑造成循环
   const res =
@@ -85,7 +88,9 @@ request.interceptors.response.use(
     if (body && typeof body.code === 'number' && body.code !== 0) {
       const msg = body.message || '请求失败'
       ElMessage.error(msg)
-      return Promise.reject(new Error(msg))
+      return Promise.reject(
+        new ApiError(msg, { status: response.status, code: body.code }),
+      )
     }
     return response
   },
@@ -97,15 +102,16 @@ request.interceptors.response.use(
     const isRefreshCall = url.includes(REFRESH_URL)
     const isPublicCall = PUBLIC_PATHS.some((p) => url.includes(p))
 
-    // refresh 自身失败 或 公开接口 401：不再刷新，直接提示 / 跳登录
+    // refresh 自身失败 或 公开接口 401：不再刷新，直接提示 / 交给上层跳登录
     if (isRefreshCall || isPublicCall) {
       const msg = error.response?.data?.message || error.message || '网络异常'
       if (status === 401 && isRefreshCall) {
-        redirectToLogin()
-      } else {
-        ElMessage.error(msg)
+        return Promise.reject(notifySessionExpired(new SessionExpiredError()))
       }
-      return Promise.reject(new Error(msg))
+      ElMessage.error(msg)
+      return Promise.reject(
+        new ApiError(msg, { status, code: error.response?.data?.code }),
+      )
     }
 
     // 受保护接口 401：尝试无感刷新后重试一次
@@ -131,10 +137,11 @@ request.interceptors.response.use(
         flushQueue(newToken, null)
         original.headers.Authorization = `Bearer ${newToken}`
         return request(original)
-      } catch (e) {
-        flushQueue(null, e)
-        redirectToLogin()
-        return Promise.reject(e instanceof Error ? e : new Error('会话已失效'))
+      } catch {
+        // refresh 失败：唤醒排队请求让它们一起失败，再通知上层清会话
+        const expired = new SessionExpiredError()
+        flushQueue(null, expired)
+        return Promise.reject(notifySessionExpired(expired))
       } finally {
         isRefreshing = false
       }
@@ -142,12 +149,13 @@ request.interceptors.response.use(
 
     const msg = error.response?.data?.message || error.message || '网络异常'
     if (status === 401) {
-      // 重试后仍 401：会话确实失效，清理并跳登录
-      redirectToLogin()
-    } else {
-      ElMessage.error(msg)
+      // 重试后仍 401：会话确实失效，交给上层清理并跳登录
+      return Promise.reject(notifySessionExpired(new SessionExpiredError()))
     }
-    return Promise.reject(new Error(msg))
+    ElMessage.error(msg)
+    return Promise.reject(
+      new ApiError(msg, { status, code: error.response?.data?.code }),
+    )
   },
 )
 

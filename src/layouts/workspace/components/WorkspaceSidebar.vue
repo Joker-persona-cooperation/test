@@ -3,7 +3,7 @@ import { Fold, Expand } from '@element-plus/icons-vue'
 import { useRoute } from 'vue-router'
 import { APP_NAME, APP_TAGLINE } from '@/constants/app'
 import { workspaceNavItems, isWorkspaceNavActive } from '@/constants/navigation'
-import { useWorkspaceSidebar } from '@/composables/useWorkspaceSidebar'
+import { useWorkspaceSidebar } from '../composables/useWorkspaceSidebar'
 
 const props = withDefaults(defineProps<{ variant?: 'desktop' | 'drawer' }>(), {
   variant: 'desktop',

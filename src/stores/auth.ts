@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { isAxiosError } from 'axios'
 import * as authApi from '@/api/auth'
+import { isSessionExpired } from '@/api/errors'
 import {
   getToken,
   setToken,
@@ -20,13 +20,10 @@ export const useAuthStore = defineStore('auth', () => {
   const bootstrapping = ref(false)
   let bootstrapPromise: Promise<void> | null = null
 
-  const isLoggedIn = computed(() => !!token.value)
-
-  function shouldClearSessionOnBootstrap(error: unknown): boolean {
-    if (!isAxiosError(error)) return false
-    const status = error.response?.status
-    return status === 401
-  }
+  // 登录态不能用「本地有 access token」代表：鉴权是 Bearer + Cookie 双轨，
+  // 仅 Cookie 有效时 /users/me 会成功但本地没有 Bearer，用 token 判断会把
+  // 已登录用户误判为未登录。以「拿到过用户信息」为准更贴合实际会话状态。
+  const isLoggedIn = computed(() => !!userInfo.value)
 
   function applySession(res: authApi.AuthResult) {
     token.value = res.access_token
@@ -74,9 +71,9 @@ export const useAuthStore = defineStore('auth', () => {
         // 3. access 失效但 refresh 有效时由请求层自动 refresh 后重试成功
         await fetchProfile()
       } catch (error) {
-        // 仅在服务端明确判定会话无效时清理本地态；
+        // 仅在请求层明确判定会话失效（refresh 失败或重试后仍 401）时清理本地态；
         // 5xx、网络抖动等场景保留本地状态，交由请求层提示用户。
-        if (shouldClearSessionOnBootstrap(error)) {
+        if (isSessionExpired(error)) {
           clearSession()
         }
       } finally {
@@ -109,6 +106,7 @@ export const useAuthStore = defineStore('auth', () => {
     register,
     fetchProfile,
     bootstrapSession,
+    clearSession,
     logout,
   }
 })

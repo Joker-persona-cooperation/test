@@ -20,6 +20,15 @@
   --color-warning: #ef9f39;
   --color-danger: #e5604c;
 
+  // 状态色的浅底 + 深字配对，用于指标卡、标签等「弱强调」场景。
+  // primary 的同类变量是 --color-primary-soft / --color-primary-deep。
+  --color-warning-soft: #fff4e6;
+  --color-warning-deep: #b96f10;
+  --color-success-soft: #e8faf0;
+  --color-success-deep: #12764e;
+  --color-danger-soft: #fdeceb;
+  --color-danger-deep: #c0392b;
+
   // 结构
   --radius-card: 16px;
   --radius-control: 10px;

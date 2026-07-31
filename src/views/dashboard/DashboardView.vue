@@ -18,12 +18,8 @@ import {
   PARSE_STATUS_LABEL,
   PARSE_STATUS_TAG,
 } from '@/constants/parseStatus'
-import {
-  mockParseRecords,
-  mockReminders,
-  mockStats,
-  type DashboardParseRecord,
-} from '@/mocks/dashboard'
+import type { DashboardParseRecord } from '@/api/dashboard'
+import { mockParseRecords, mockReminders, mockStats } from '@/mocks/dashboard'
 
 const authStore = useAuthStore()
 const router = useRouter()

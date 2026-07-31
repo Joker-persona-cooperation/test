@@ -63,25 +63,26 @@ defineProps<{
     color: var(--color-text-soft);
   }
 
-  // 色板集中在这里，调用方只传语义 tone，不再逐个手写 hex
+  // tone → 色对的映射集中在这里，调用方只传语义 tone；
+  // 具体色值全部来自 variables.scss，组件内不出现 hex
   &.is-primary {
     --stat-bg: var(--color-primary-soft);
     --stat-color: var(--color-primary-deep);
   }
 
   &.is-warning {
-    --stat-bg: #fff4e6;
-    --stat-color: #b96f10;
+    --stat-bg: var(--color-warning-soft);
+    --stat-color: var(--color-warning-deep);
   }
 
   &.is-success {
-    --stat-bg: #e8faf0;
-    --stat-color: #12764e;
+    --stat-bg: var(--color-success-soft);
+    --stat-color: var(--color-success-deep);
   }
 
   &.is-danger {
-    --stat-bg: #fdeceb;
-    --stat-color: #c0392b;
+    --stat-bg: var(--color-danger-soft);
+    --stat-color: var(--color-danger-deep);
   }
 }
 </style>

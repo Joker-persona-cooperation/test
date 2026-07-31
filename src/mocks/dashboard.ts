@@ -1,24 +1,14 @@
-import type { DocumentSource, ParseJobStatus } from '@/constants/parseStatus'
+import type {
+  DashboardParseRecord,
+  DashboardReminder,
+  DashboardStats,
+} from '@/api/dashboard'
 
 // 工作台演示数据。等 documents / parse-jobs / projects 接口接入后整个文件即可删除，
 // 演示数据集中在此处是为了不让假数据散落进视图组件。
-export interface DashboardParseRecord {
-  id: number
-  title: string
-  source: DocumentSource
-  status: ParseJobStatus
-  createdAt: string
-}
+// 注意：类型定义在 api/dashboard.ts，删除本文件时不要连带删掉那些类型。
 
-export interface DashboardReminder {
-  id: number
-  title: string
-  project: string
-  deadline: string
-  daysLeft: number
-}
-
-export const mockStats = {
+export const mockStats: DashboardStats = {
   documents: 12,
   parseJobs: 8,
   activeProjects: 5,

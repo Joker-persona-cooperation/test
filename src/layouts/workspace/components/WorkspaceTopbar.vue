@@ -2,10 +2,10 @@
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowDown, Expand, Plus, SwitchButton } from '@element-plus/icons-vue'
+import { ArrowDown, Expand, Plus } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { findWorkspaceNavItem } from '@/constants/navigation'
-import { useWorkspaceSidebar } from '@/composables/useWorkspaceSidebar'
+import { useWorkspaceSidebar } from '../composables/useWorkspaceSidebar'
 
 const route = useRoute()
 const router = useRouter()
@@ -93,11 +93,7 @@ async function handleLogout() {
             <el-dropdown-item @click="router.push({ name: 'profile' })">
               个人中心
             </el-dropdown-item>
-            <el-dropdown-item
-              divided
-              :icon="SwitchButton"
-              @click="handleLogout"
-            >
+            <el-dropdown-item divided @click="handleLogout">
               退出登录
             </el-dropdown-item>
           </el-dropdown-menu>

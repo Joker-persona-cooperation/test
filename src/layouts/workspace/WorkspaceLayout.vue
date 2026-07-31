@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import WorkspaceSidebar from './components/WorkspaceSidebar.vue'
 import WorkspaceTopbar from './components/WorkspaceTopbar.vue'
-import { useWorkspaceSidebar } from '@/composables/useWorkspaceSidebar'
+import { useWorkspaceSidebar } from './composables/useWorkspaceSidebar'
 
 const { mobileNavOpen, closeMobileNav } = useWorkspaceSidebar()
 </script>

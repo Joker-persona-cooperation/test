@@ -58,20 +58,26 @@ taskpilot-web/
 ├── src/
 │   ├── api/                     # 请求层：client.ts 为 axios 实例，其余按资源拆分
 │   │   ├── auth.ts
-│   │   └── client.ts
+│   │   ├── client.ts
+│   │   ├── dashboard.ts         # 工作台数据的类型契约
+│   │   └── errors.ts            # ApiError / SessionExpiredError
 │   ├── components/common/        # 跨模块复用的展示组件（AppPanel、AppStatCard）
-│   ├── composables/             # 可复用逻辑（useGreeting、useWorkspaceSidebar）
+│   ├── composables/             # 跨模块通用逻辑（useGreeting）
 │   ├── constants/               # 静态配置：导航、应用名、解析状态映射
-│   ├── layouts/workspace/       # 工作台布局与其私有子组件
+│   ├── layouts/workspace/       # 工作台布局与其私有子组件、私有 composable
 │   │   ├── components/
+│   │   ├── composables/
 │   │   └── WorkspaceLayout.vue
-│   ├── mocks/                   # 演示数据，接口接入后逐个删除
+│   ├── mocks/                   # 演示数据，接口接入后逐个删除（类型在 api/）
 │   ├── router/                  # index.ts 装配、routes.ts 路由表、guards.ts 守卫
 │   ├── stores/
 │   ├── styles/
 │   ├── types/                   # 全局类型增强（RouteMeta 等）
 │   ├── utils/
 │   ├── views/                   # 页面级组件，统一 *View.vue 后缀
+│   │   ├── auth/                # 登录、注册
+│   │   ├── dashboard/           # 工作台首页
+│   │   └── system/              # 全局兜底页（占位页、404）
 │   ├── App.vue
 │   └── main.ts
 ├── .env.development
@@ -85,24 +91,25 @@ taskpilot-web/
 约定：
 
 - 页面级组件统一 `*View.vue` 后缀，只被路由引用
-- 只服务单一布局/页面的组件放在其同级 `components/` 下，跨模块复用才提到 `src/components/common/`
-- `mocks/` 是临时目录，对应模块接入真实接口后直接删除该文件
+- 只服务单一布局/页面的组件与 composable 放在其同级 `components/`、`composables/` 下，跨模块复用才提到 `src/components/common/`、`src/composables/`
+- 分层单向依赖：`views/layouts → stores → api → utils/constants`，不允许反向或跨层
+- `mocks/` 是临时目录，对应模块接入真实接口后直接删除该文件；其中的类型定义放在 `api/`，不随 mock 删除
 - 后续新增 `document.ts`、`parseJob.ts`、`parseResult.ts`、`project.ts`、`task.ts` 后，再同步补齐文档
 
 ---
 
 ## 当前路由
 
-| 路由         | 页面                        | 说明                             |
-| ------------ | --------------------------- | -------------------------------- |
-| `/login`     | `LoginView.vue`             | 登录页                           |
-| `/register`  | `RegisterView.vue`          | 注册页                           |
-| `/dashboard` | `DashboardView.vue`         | 工作台首页，当前使用演示数据     |
+| 路由         | 页面                        | 说明                              |
+| ------------ | --------------------------- | --------------------------------- |
+| `/login`     | `LoginView.vue`             | 登录页                            |
+| `/register`  | `RegisterView.vue`          | 注册页                            |
+| `/dashboard` | `DashboardView.vue`         | 工作台首页，当前使用演示数据      |
 | `/parse/new` | `ModulePlaceholderView.vue` | 占位，待接入 documents/parse-jobs |
-| `/projects`  | `ModulePlaceholderView.vue` | 占位，待接入 projects/tasks      |
-| `/history`   | `ModulePlaceholderView.vue` | 占位，待接入 history             |
-| `/profile`   | `ModulePlaceholderView.vue` | 占位，待完善账号设置             |
-| `*`          | `NotFoundView.vue`          | 404 页面                         |
+| `/projects`  | `ModulePlaceholderView.vue` | 占位，待接入 projects/tasks       |
+| `/history`   | `ModulePlaceholderView.vue` | 占位，待接入 history              |
+| `/profile`   | `ModulePlaceholderView.vue` | 占位，待完善账号设置              |
+| `*`          | `NotFoundView.vue`          | 404 页面                          |
 
 占位页的标题、描述、待接入接口清单全部写在路由 `meta` 中，由 `ModulePlaceholderView` 统一渲染。
 
@@ -115,7 +122,8 @@ taskpilot-web/
 - 登录 / 注册
 - Token 持久化
 - 会话恢复
-- 401 自动刷新
+- 401 自动刷新（并发只刷一次，其余请求排队重试）
+- 会话失效统一处理：请求层抛 `SessionExpiredError` → 清本地会话 → 跳登录并保留 `redirect` 回跳
 - 退出登录
 - 路由鉴权
 

@@ -2,7 +2,8 @@ import type { RouteRecordRaw } from 'vue-router'
 
 // 占位模块统一用同一个视图渲染，差异全部由 meta 描述，
 // 后续某个模块真正落地时只需替换这里的 component。
-const ModulePlaceholderView = () => import('@/views/ModulePlaceholderView.vue')
+const ModulePlaceholderView = () =>
+  import('@/views/system/ModulePlaceholderView.vue')
 
 export const routes: RouteRecordRaw[] = [
   {
@@ -120,7 +121,7 @@ export const routes: RouteRecordRaw[] = [
   {
     path: '/:pathMatch(.*)*',
     name: 'not-found',
-    component: () => import('@/views/NotFoundView.vue'),
+    component: () => import('@/views/system/NotFoundView.vue'),
     meta: { title: '页面不存在', public: true },
   },
 ]
