@@ -2,12 +2,14 @@
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Plus, Search } from '@element-plus/icons-vue'
+import { Plus, Search, Sunny, Moon } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
+import { useTheme } from '@/composables/useTheme'
 
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
+const { isDark, toggle: toggleTheme } = useTheme()
 
 // 页面标题取自路由 meta，回退到品牌名
 const pageTitle = computed(() => (route.meta.title as string) || 'TaskPilot')
@@ -58,6 +60,17 @@ async function handleLogout() {
       <el-button type="primary" :icon="Plus" round @click="goParse">
         新建解析
       </el-button>
+      <button
+        class="theme-toggle"
+        :title="isDark ? '切换到亮色模式' : '切换到暗色模式'"
+        :aria-label="isDark ? '切换到亮色模式' : '切换到暗色模式'"
+        @click="toggleTheme"
+      >
+        <el-icon class="theme-icon" :class="{ 'is-dark': isDark }">
+          <Sunny v-show="isDark" />
+          <Moon v-show="!isDark" />
+        </el-icon>
+      </button>
       <el-dropdown trigger="click" @command="handleCommand">
         <div class="user-trigger">
           <el-avatar :size="34" class="user-avatar">{{ avatarText }}</el-avatar>
@@ -102,6 +115,38 @@ async function handleLogout() {
 
 .header-search {
   width: 240px;
+}
+
+// 主题切换按钮：圆形图标按钮，hover 高亮，图标带旋转过渡
+.theme-toggle {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 50%;
+  background: var(--color-surface);
+  color: var(--color-text-soft);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.25s ease;
+
+  &:hover {
+    color: var(--color-primary);
+    border-color: var(--color-primary);
+    background: var(--color-primary-soft);
+  }
+
+  .theme-icon {
+    font-size: 18px;
+    transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+
+    &.is-dark {
+      transform: rotate(360deg);
+    }
+  }
 }
 
 .user-trigger {

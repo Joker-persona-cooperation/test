@@ -1,6 +1,8 @@
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import 'element-plus/es/components/message/style/css'
+// Element Plus 暗黑模式变量：html.dark 时 el 组件自动适配
+import 'element-plus/theme-chalk/dark/css-vars.css'
 import './styles/index.scss'
 import App from './App.vue'
 import router from './router'

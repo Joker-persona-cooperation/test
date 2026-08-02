@@ -26,9 +26,10 @@ const menuItems: MenuItem[] = [
   { path: '/profile', title: '个人中心', icon: User },
 ]
 
-// 工作台使用精确匹配，其余菜单支持子路由高亮
+// 工作台使用精确匹配；新建解析匹配整个 /parse 前缀（含处理中/结果子页）；其余菜单支持子路由高亮
 function isActive(path: string): boolean {
   if (path === '/dashboard') return route.path === '/dashboard'
+  if (path === '/parse/new') return route.path.startsWith('/parse')
   return route.path === path || route.path.startsWith(path + '/')
 }
 </script>

@@ -22,8 +22,18 @@ const router = createRouter({
         },
         {
           path: 'parse/new',
-          component: () => import('@/views/PlaceholderView.vue'),
+          component: () => import('@/views/parse/ParseNew.vue'),
           meta: { title: '新建解析' },
+        },
+        {
+          path: 'parse/:jobId/processing',
+          component: () => import('@/views/parse/ParseProcessing.vue'),
+          meta: { title: '解析处理中' },
+        },
+        {
+          path: 'parse/:jobId/result',
+          component: () => import('@/views/parse/ParseResult.vue'),
+          meta: { title: '解析结果' },
         },
         {
           path: 'projects',
