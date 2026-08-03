@@ -1,5 +1,9 @@
 // 项目相关接口，对接后端 /api/v1/projects
+//
+// 任务类型与任务读写操作已统一收口在 src/api/task.ts：
+// 项目侧只保留项目自身的 CRUD，createProject 返回的 tasks 复用 task 模块的类型。
 import { http } from './client'
+import type { Task } from './task'
 
 export interface CreateProjectParams {
   parse_result_id: number
@@ -19,25 +23,6 @@ export interface Project {
   updated_at: string
 }
 
-export type TaskStatus = 'todo' | 'doing' | 'done'
-export type TaskPriority = 'low' | 'medium' | 'high'
-
-export interface Task {
-  id: number
-  project_id: number
-  source_parse_result_id: number | null
-  title: string
-  description: string | null
-  status: TaskStatus
-  priority: TaskPriority
-  deadline: string | null
-  sort_order: number
-  source_type: 'ai' | 'manual'
-  version: number
-  created_at: string
-  updated_at: string
-}
-
 export interface CreateProjectResponse {
   project: Project
   tasks: Task[]
@@ -50,9 +35,8 @@ export interface ProjectListResponse {
   total: number
 }
 
-export interface TaskListResponse {
-  items: Task[]
-}
+// 任务类型随用随导，方便旧调用方继续从 @/api/project 取到 Task
+export type { Task } from './task'
 
 // 第五步：将已确认的解析结果保存为项目
 export function createProject(
@@ -67,12 +51,4 @@ export function getProjects(status: 'active' | 'archived' = 'active') {
 
 export function getProject(projectId: number) {
   return http.get<Project>(`/projects/${projectId}`)
-}
-
-export function getProjectTasks(projectId: number) {
-  return http.get<TaskListResponse>(`/projects/${projectId}/tasks`)
-}
-
-export function updateTaskStatus(taskId: number, status: TaskStatus) {
-  return http.patch<Task>(`/tasks/${taskId}/status`, { status })
 }
