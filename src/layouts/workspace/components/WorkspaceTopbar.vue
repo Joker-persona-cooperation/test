@@ -92,7 +92,11 @@ async function handleLogout() {
         :aria-checked="isDark"
         @click="toggleTheme"
       >
-        <el-icon class="workspace-topbar__theme-icon" aria-hidden="true">
+        <el-icon
+          class="workspace-topbar__theme-icon"
+          :class="{ 'is-dark': isDark }"
+          aria-hidden="true"
+        >
           <Sunny v-if="isDark" />
           <Moon v-else />
         </el-icon>
@@ -193,6 +197,7 @@ async function handleLogout() {
   }
 
   &__theme-toggle {
+    position: relative;
     width: 38px;
     height: 38px;
     flex-shrink: 0;
@@ -205,23 +210,35 @@ async function handleLogout() {
     background: var(--color-bg);
     color: var(--color-text-soft);
     cursor: pointer;
+    overflow: hidden;
     transition:
-      color 0.18s ease,
-      border-color 0.18s ease,
-      background-color 0.18s ease,
-      box-shadow 0.18s ease,
-      transform 0.18s ease;
+      color 0.25s ease,
+      border-color 0.25s ease,
+      background-color 0.25s ease,
+      box-shadow 0.25s ease;
+
+    // 暗色下的轨道高亮环，提供状态辨识度
+    &::before {
+      content: '';
+      position: absolute;
+      inset: 3px;
+      border-radius: 50%;
+      border: 1.5px solid transparent;
+      transition:
+        border-color 0.3s ease,
+        box-shadow 0.3s ease;
+      pointer-events: none;
+    }
 
     &:hover {
       border-color: var(--color-primary);
       background: var(--color-primary-soft);
       color: var(--color-primary-deep);
       box-shadow: 0 4px 14px rgba(56, 165, 255, 0.18);
-      transform: translateY(-1px);
     }
 
     &:active {
-      transform: translateY(0) scale(0.94);
+      transform: scale(0.92);
     }
 
     &:focus-visible {
@@ -229,20 +246,42 @@ async function handleLogout() {
       outline-offset: 2px;
     }
 
+    // 暗色模式：暖金色太阳 + 高亮轨道，呼应提提交的视觉风格
     &.is-dark {
       border-color: rgba(102, 186, 255, 0.5);
       background: var(--color-primary-soft);
       color: #ffd166;
+
+      &::before {
+        border-color: rgba(255, 209, 102, 0.55);
+        box-shadow:
+          0 0 0 1px rgba(255, 209, 102, 0.18),
+          inset 0 0 8px rgba(255, 209, 102, 0.25);
+      }
     }
   }
 
   &__theme-icon {
+    position: relative;
+    z-index: 1;
     font-size: 18px;
-    transition: transform 0.25s ease;
+    // 提交中的核心动画：暗色时图标旋转 360° 过渡
+    transition:
+      transform 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+      opacity 0.2s ease;
+
+    &.is-dark {
+      transform: rotate(360deg);
+    }
   }
 
+  // hover 时图标轻微回弹，增强反馈
   &__theme-toggle:hover &__theme-icon {
     transform: rotate(16deg);
+  }
+
+  &__theme-toggle.is-dark:hover &__theme-icon {
+    transform: rotate(376deg);
   }
 
   &__user {
@@ -315,8 +354,13 @@ async function handleLogout() {
 @media (prefers-reduced-motion: reduce) {
   .workspace-topbar__user,
   .workspace-topbar__theme-toggle,
-  .workspace-topbar__theme-icon {
+  .workspace-topbar__theme-icon,
+  .workspace-topbar__theme-toggle::before {
     transition: none;
+  }
+
+  .workspace-topbar__theme-icon.is-dark {
+    transform: none;
   }
 }
 </style>

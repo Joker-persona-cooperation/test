@@ -4,7 +4,11 @@ import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, type FormInstance } from 'element-plus'
 import { Message, Lock } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
-import { getLastEmail, setLastEmail, clearLastEmail } from '@/utils/storage'
+import {
+  getSavedCredentials,
+  setSavedCredentials,
+  clearSavedCredentials,
+} from '@/utils/storage'
 import { APP_NAME, APP_SLOGAN } from '@/constants/app'
 
 const router = useRouter()
@@ -13,7 +17,8 @@ const authStore = useAuthStore()
 
 const loginFormRef = ref<FormInstance>()
 const loading = ref(false)
-const remember = ref(true)
+// 记住密码默认开启，且不再提供开关按钮；登录凭据自动记住
+const rememberPassword = ref(true)
 const loginForm = reactive({
   email: '',
   password: '',
@@ -30,14 +35,12 @@ const rules = {
   ],
 }
 
-// 退出登录后保留邮箱：进入登录页时预填，免去重复输入邮箱
+// 进入登录页时自动回填已保存的登录凭据
 onMounted(() => {
-  const last = getLastEmail()
-  if (last) {
-    loginForm.email = last
-    remember.value = true
-  } else {
-    remember.value = false
+  const saved = getSavedCredentials()
+  if (saved) {
+    loginForm.email = saved.email
+    loginForm.password = saved.password
   }
 })
 
@@ -50,11 +53,11 @@ const handleSubmit = async () => {
       email: loginForm.email,
       password: loginForm.password,
     })
-    // 登录成功后按选择保存/清除邮箱
-    if (remember.value) {
-      setLastEmail(loginForm.email)
+    // 记住密码默认开启：成功后保存凭据，取消勾选则清除已保存凭据
+    if (rememberPassword.value) {
+      setSavedCredentials(loginForm.email, loginForm.password)
     } else {
-      clearLastEmail()
+      clearSavedCredentials()
     }
     ElMessage.success('登录成功')
     const redirect = (route.query.redirect as string) || '/dashboard'
@@ -100,8 +103,8 @@ const handleSubmit = async () => {
             show-password
           />
         </el-form-item>
-        <el-form-item class="remember-email">
-          <el-checkbox v-model="remember">记住邮箱</el-checkbox>
+        <el-form-item class="remember-password">
+          <el-checkbox v-model="rememberPassword">记住密码</el-checkbox>
         </el-form-item>
         <el-form-item>
           <el-button
@@ -123,7 +126,7 @@ const handleSubmit = async () => {
 
 <style lang="scss" scoped>
 // 页面骨架样式见 styles/auth.scss，此处只留登录页独有的部分
-.remember-email {
+.remember-password {
   margin-bottom: 18px;
 }
 </style>

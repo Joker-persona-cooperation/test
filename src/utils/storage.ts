@@ -2,7 +2,7 @@
 const TOKEN_KEY = 'taskpilot_token'
 const USER_KEY = 'taskpilot_user'
 const CSRF_COOKIE = 'csrf_token'
-const LAST_EMAIL_KEY = 'taskpilot_last_email'
+const SAVED_CREDENTIALS_KEY = 'taskpilot_saved_credentials'
 
 export function getToken(): string {
   return localStorage.getItem(TOKEN_KEY) || ''
@@ -37,15 +37,37 @@ export function getCsrfToken(): string {
   return match ? decodeURIComponent(match[1]) : ''
 }
 
-// 记住登录邮箱：退出登录后保留，下次登录仅需输入密码
-export function getLastEmail(): string {
-  return localStorage.getItem(LAST_EMAIL_KEY) || ''
+// 记住密码：持久化邮箱与密码，下次登录自动回填（明文存储，仅在本地可信环境使用）
+export interface SavedCredentials {
+  email: string
+  password: string
 }
 
-export function setLastEmail(email: string): void {
-  localStorage.setItem(LAST_EMAIL_KEY, email)
+export function getSavedCredentials(): SavedCredentials | null {
+  const raw = localStorage.getItem(SAVED_CREDENTIALS_KEY)
+  if (!raw) return null
+  try {
+    const parsed = JSON.parse(raw) as SavedCredentials
+    if (
+      parsed &&
+      typeof parsed.email === 'string' &&
+      typeof parsed.password === 'string'
+    ) {
+      return parsed
+    }
+    return null
+  } catch {
+    return null
+  }
 }
 
-export function clearLastEmail(): void {
-  localStorage.removeItem(LAST_EMAIL_KEY)
+export function setSavedCredentials(email: string, password: string): void {
+  localStorage.setItem(
+    SAVED_CREDENTIALS_KEY,
+    JSON.stringify({ email, password } satisfies SavedCredentials),
+  )
+}
+
+export function clearSavedCredentials(): void {
+  localStorage.removeItem(SAVED_CREDENTIALS_KEY)
 }
