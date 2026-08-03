@@ -37,23 +37,28 @@ export const routes: RouteRecordRaw[] = [
       {
         path: 'parse/new',
         name: 'parse-create',
-        component: ModulePlaceholderView,
+        component: () => import('@/views/parse/ParseNew.vue'),
         meta: {
           title: '新建解析',
-          description:
-            '这里将承接上传 PDF、粘贴文本、发起解析任务与状态轮询的完整入口。',
-          statusLabel: '待接入 documents + parse-jobs',
-          suggestedActions: [
-            '支持 PDF 上传与纯文本粘贴双模式录入。',
-            '提交后立刻创建 parse job，并在前端轮询任务状态。',
-            '任务完成后自动跳转到解析结果详情页。',
-          ],
-          endpointGroups: [
-            'POST /api/v1/documents',
-            'POST /api/v1/documents/text',
-            'POST /api/v1/parse-jobs',
-            'GET /api/v1/parse-jobs/{jobId}',
-          ],
+          description: '粘贴任务文档，由 AI 自动拆解任务目标与执行清单。',
+        },
+      },
+      {
+        path: 'parse/:jobId/processing',
+        name: 'parse-processing',
+        component: () => import('@/views/parse/ParseProcessing.vue'),
+        meta: {
+          title: '解析处理中',
+          description: '查看文档解析任务的实时处理状态。',
+        },
+      },
+      {
+        path: 'parse/:jobId/result',
+        name: 'parse-result',
+        component: () => import('@/views/parse/ParseResult.vue'),
+        meta: {
+          title: '解析结果',
+          description: '查看解析结果并将任务清单保存为项目。',
         },
       },
       {

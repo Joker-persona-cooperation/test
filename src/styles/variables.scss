@@ -48,3 +48,33 @@
   --el-color-primary-light-9: #eaf6ff;
   --el-color-primary-dark-2: #2b8ad0;
 }
+
+// 暗黑模式：保持品牌蓝主色，调暗背景/表面/文本，保证对比度
+html.dark {
+  --color-primary: #38a5ff;
+  --color-primary-deep: #66baff;
+  --color-primary-soft: #173a52;
+
+  --color-bg: #0d1117;
+  --color-surface: #161b22;
+
+  --color-text: #e6edf3;
+  --color-text-soft: #8b949e;
+
+  --color-border: #30363d;
+  --color-success: #2ea043;
+  --color-warning: #d29922;
+  --color-danger: #f85149;
+
+  --shadow-card: 0 8px 32px rgba(0, 0, 0, 0.4);
+  --shadow-hover: 0 12px 40px rgba(0, 0, 0, 0.55);
+
+  // Element Plus 主色在暗色下略微提亮以保持对比
+  --el-color-primary: #38a5ff;
+  --el-color-primary-light-3: #5db6ff;
+  --el-color-primary-light-5: #4aa3f5;
+  --el-color-primary-light-7: #2f6e9e;
+  --el-color-primary-light-8: #234f72;
+  --el-color-primary-light-9: #1a3a52;
+  --el-color-primary-dark-2: #66baff;
+}
