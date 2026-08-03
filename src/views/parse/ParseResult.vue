@@ -1,102 +1,168 @@
 <script setup lang="ts">
-// 第四步 + 第五步：解析结果页
-// 第四步：只读展示 目标 / 截止时间 / 交付物 / 要求 / 风险 / 生成任务
-// 第五步：确认结果 -> 保存为项目 -> 跳转项目页
-import { ref, computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
-import {
-  Aim,
-  Calendar,
-  Box,
-  List,
-  WarningFilled,
-  Tickets,
-} from '@element-plus/icons-vue'
+import { ElMessage, type TagProps } from 'element-plus'
+import { Delete, Plus } from '@element-plus/icons-vue'
 import {
   getParseJobResult,
   type ParseResult,
   type ParseTask,
 } from '@/api/parseJob'
-import { confirmParseResult } from '@/api/parseResult'
+import {
+  confirmParseResult,
+  updateParseResult,
+  type UpdateParseResultParams,
+} from '@/api/parseResult'
 import { createProject } from '@/api/project'
 
 const route = useRoute()
 const router = useRouter()
-
 const jobId = Number(route.params.jobId)
+
 const result = ref<ParseResult | null>(null)
 const loading = ref(true)
+const saving = ref(false)
+const confirming = ref(false)
+const creatingProject = ref(false)
 const errorMsg = ref('')
 
-// 第五步：确认 / 保存为项目的流程状态
-const confirming = ref(false)
-const saving = ref(false)
+const editable = computed(() =>
+  Boolean(result.value && !result.value.is_confirmed),
+)
 
-const priorityTag = (p?: ParseTask['priority']) => {
-  switch (p) {
-    case 'high':
-      return { type: 'danger', text: '高' }
-    case 'low':
-      return { type: 'info', text: '低' }
-    default:
-      return { type: 'warning', text: '中' }
+function priorityTag(priority?: ParseTask['priority']): {
+  type: TagProps['type']
+  text: string
+} {
+  if (priority === 'high') return { type: 'danger', text: '高' }
+  if (priority === 'low') return { type: 'info', text: '低' }
+  return { type: 'warning', text: '中' }
+}
+
+function addListItem(
+  field: 'deliverables' | 'key_requirements' | 'risk_warnings',
+) {
+  result.value?.[field].push('')
+}
+
+function addTask() {
+  result.value?.generated_tasks.push({
+    title: '',
+    description: null,
+    priority: 'medium',
+    deadline: null,
+  })
+}
+
+function buildUpdateParams(): UpdateParseResultParams | null {
+  if (!result.value) return null
+
+  const title = result.value.title.trim()
+  const summary = result.value.summary.trim()
+  const generatedTasks = result.value.generated_tasks.map((task) => ({
+    title: task.title.trim(),
+    description: task.description?.trim() || null,
+    priority: task.priority || 'medium',
+    deadline: task.deadline || null,
+  }))
+
+  if (!title || !summary) {
+    ElMessage.warning('标题和摘要不能为空')
+    return null
+  }
+  if (generatedTasks.some((task) => !task.title)) {
+    ElMessage.warning('任务标题不能为空')
+    return null
+  }
+
+  return {
+    version: result.value.version,
+    title,
+    summary,
+    deadline: result.value.deadline || null,
+    deliverables: result.value.deliverables
+      .map((item) => item.trim())
+      .filter(Boolean),
+    key_requirements: result.value.key_requirements
+      .map((item) => item.trim())
+      .filter(Boolean),
+    risk_warnings: result.value.risk_warnings
+      .map((item) => item.trim())
+      .filter(Boolean),
+    generated_tasks: generatedTasks,
   }
 }
 
-const formattedDeadline = computed(() => {
-  const d = result.value?.deadline
-  if (!d) return '未指定'
-  const date = new Date(d)
-  if (Number.isNaN(date.getTime())) return d
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
-})
-
 async function loadResult() {
   loading.value = true
+  errorMsg.value = ''
   try {
     result.value = await getParseJobResult(jobId)
-  } catch (e) {
-    errorMsg.value =
-      e instanceof Error ? e.message : '获取解析结果失败'
+  } catch (error) {
+    errorMsg.value = error instanceof Error ? error.message : '获取解析结果失败'
   } finally {
     loading.value = false
   }
 }
 
-// 第五步：先确认结果，再保存为项目（两步合一，串行调用）
-async function handleSaveAsProject() {
-  if (!result.value) return
+async function saveChanges(showSuccess = true) {
+  if (!result.value || result.value.is_confirmed) return result.value
+  const params = buildUpdateParams()
+  if (!params) return null
+
   saving.value = true
   try {
-    // 1) 确认解析结果
-    confirming.value = true
-    const confirmed = await confirmParseResult(result.value.id)
-    result.value = confirmed
-    confirming.value = false
-    // 2) 保存为项目
-    const project = await createProject({
-      parse_result_id: result.value.id,
-      title: result.value.goal || '未命名项目',
-      deadline: result.value.deadline,
-    })
-    ElMessage.success(`已保存为项目：${project.title}`)
-    router.push('/projects')
+    result.value = await updateParseResult(result.value.id, params)
+    if (showSuccess) ElMessage.success('解析结果已保存')
+    return result.value
   } catch {
-    confirming.value = false
+    return null
   } finally {
     saving.value = false
   }
 }
 
-function goNew() {
-  router.push('/parse/new')
+async function handleConfirm() {
+  if (!result.value || result.value.is_confirmed) return
+  confirming.value = true
+  try {
+    const saved = await saveChanges(false)
+    if (!saved) return
+    result.value = await confirmParseResult(saved.id)
+    ElMessage.success('解析结果已确认')
+  } finally {
+    confirming.value = false
+  }
+}
+
+async function handleSaveAsProject() {
+  if (!result.value) return
+  creatingProject.value = true
+  try {
+    if (!result.value.is_confirmed) {
+      const saved = await saveChanges(false)
+      if (!saved) return
+      result.value = await confirmParseResult(saved.id)
+    }
+
+    const created = await createProject({
+      parse_result_id: result.value.id,
+      name: result.value.title,
+    })
+    ElMessage.success(`项目「${created.project.name}」已就绪`)
+    await router.push({
+      name: 'project-detail',
+      params: { projectId: created.project.id },
+    })
+  } finally {
+    creatingProject.value = false
+  }
 }
 
 onMounted(() => {
-  if (!Number.isFinite(jobId) || jobId <= 0) {
+  if (!Number.isInteger(jobId) || jobId <= 0) {
     ElMessage.error('任务 ID 无效')
-    router.replace('/parse/new')
+    router.replace({ name: 'parse-create' })
     return
   }
   loadResult()
@@ -105,12 +171,8 @@ onMounted(() => {
 
 <template>
   <div class="parse-result">
-    <!-- 加载中 -->
-    <div v-if="loading" class="result-loading">
-      <el-skeleton :rows="8" animated />
-    </div>
+    <div v-if="loading" class="card"><el-skeleton :rows="10" animated /></div>
 
-    <!-- 加载失败 -->
     <el-result
       v-else-if="errorMsg"
       icon="error"
@@ -118,126 +180,182 @@ onMounted(() => {
       :sub-title="errorMsg"
     >
       <template #extra>
-        <el-button type="primary" @click="goNew">重新录入</el-button>
+        <el-button @click="router.push({ name: 'parse-create' })"
+          >重新录入</el-button
+        >
+        <el-button type="primary" @click="loadResult">重新加载</el-button>
       </template>
     </el-result>
 
-    <!-- 结果内容 -->
     <template v-else-if="result">
-      <!-- 目标 + 截止时间 概览 -->
-      <section class="overview-card">
-        <div class="overview-main">
-          <div class="overview-label">
-            <el-icon><Aim /></el-icon>
-            <span>解析目标</span>
+      <section class="card result-head">
+        <div>
+          <div class="eyebrow">
+            <el-tag
+              :type="result.is_confirmed ? 'success' : 'warning'"
+              effect="plain"
+            >
+              {{ result.is_confirmed ? '已确认' : '待确认' }}
+            </el-tag>
+            <span>版本 v{{ result.version }}</span>
+            <span v-if="result.ai_model">模型 {{ result.ai_model }}</span>
           </div>
-          <h2 class="overview-goal">{{ result.goal || '未识别到明确目标' }}</h2>
+          <h2>{{ result.title }}</h2>
         </div>
-        <div class="overview-side">
-          <div class="overview-item">
-            <el-icon class="overview-item-icon"><Calendar /></el-icon>
-            <div>
-              <div class="overview-item-label">截止时间</div>
-              <div class="overview-item-value">{{ formattedDeadline }}</div>
-            </div>
-          </div>
-        </div>
+        <el-date-picker
+          v-model="result.deadline"
+          type="datetime"
+          value-format="YYYY-MM-DDTHH:mm:ssZ"
+          placeholder="未指定截止时间"
+          :disabled="!editable"
+        />
       </section>
 
-      <div class="result-grid">
-        <!-- 交付物 -->
-        <section class="block-card">
-          <div class="block-head">
-            <el-icon class="block-icon block-icon--blue"><Box /></el-icon>
-            <h3>交付物</h3>
-            <span class="block-count">{{ result.deliverables.length }}</span>
-          </div>
-          <ul v-if="result.deliverables.length" class="block-list">
-            <li v-for="(item, i) in result.deliverables" :key="i">
-              <span class="list-dot">{{ i + 1 }}</span>
-              <span>{{ item }}</span>
-            </li>
-          </ul>
-          <p v-else class="block-empty">未识别到交付物</p>
-        </section>
-
-        <!-- 关键要求 -->
-        <section class="block-card">
-          <div class="block-head">
-            <el-icon class="block-icon block-icon--green"><List /></el-icon>
-            <h3>关键要求</h3>
-            <span class="block-count">{{ result.requirements.length }}</span>
-          </div>
-          <ul v-if="result.requirements.length" class="block-list">
-            <li v-for="(item, i) in result.requirements" :key="i">
-              <span class="list-dot">{{ i + 1 }}</span>
-              <span>{{ item }}</span>
-            </li>
-          </ul>
-          <p v-else class="block-empty">未识别到关键要求</p>
-        </section>
-
-        <!-- 风险提醒 -->
-        <section class="block-card">
-          <div class="block-head">
-            <el-icon class="block-icon block-icon--orange"><WarningFilled /></el-icon>
-            <h3>风险提醒</h3>
-            <span class="block-count">{{ result.risks.length }}</span>
-          </div>
-          <ul v-if="result.risks.length" class="block-list">
-            <li v-for="(item, i) in result.risks" :key="i">
-              <span class="list-dot list-dot--warn">!</span>
-              <span>{{ item }}</span>
-            </li>
-          </ul>
-          <p v-else class="block-empty">未识别到风险</p>
-        </section>
-      </div>
-
-      <!-- 任务清单 -->
-      <section class="tasks-card">
-        <div class="block-head">
-          <el-icon class="block-icon block-icon--blue"><Tickets /></el-icon>
-          <h3>生成任务</h3>
-          <span class="block-count">{{ result.tasks.length }}</span>
+      <section class="card edit-card">
+        <div class="field">
+          <label>项目标题</label>
+          <el-input
+            v-model="result.title"
+            maxlength="255"
+            :disabled="!editable"
+          />
         </div>
-        <div v-if="result.tasks.length" class="task-list">
-          <div v-for="(task, i) in result.tasks" :key="task.id ?? i" class="task-item">
-            <div class="task-index">{{ i + 1 }}</div>
-            <div class="task-main">
-              <div class="task-title">{{ task.title }}</div>
-              <p v-if="task.description" class="task-desc">{{ task.description }}</p>
+        <div class="field">
+          <label>解析摘要</label>
+          <el-input
+            v-model="result.summary"
+            type="textarea"
+            :rows="4"
+            maxlength="5000"
+            show-word-limit
+            :disabled="!editable"
+          />
+        </div>
+
+        <div
+          v-for="section in [
+            { field: 'deliverables', title: '交付物' },
+            { field: 'key_requirements', title: '关键要求' },
+            { field: 'risk_warnings', title: '风险提醒' },
+          ] as const"
+          :key="section.field"
+          class="field"
+        >
+          <div class="field-head">
+            <label>{{ section.title }}</label>
+            <el-button
+              v-if="editable"
+              text
+              type="primary"
+              :icon="Plus"
+              @click="addListItem(section.field)"
+              >添加</el-button
+            >
+          </div>
+          <div v-if="result[section.field].length" class="editable-list">
+            <div
+              v-for="(_, index) in result[section.field]"
+              :key="index"
+              class="editable-row"
+            >
+              <el-input
+                v-model="result[section.field][index]"
+                :disabled="!editable"
+              />
+              <el-button
+                v-if="editable"
+                text
+                type="danger"
+                :icon="Delete"
+                aria-label="删除"
+                @click="result[section.field].splice(index, 1)"
+              />
             </div>
-            <div class="task-meta">
-              <el-tag size="small" :type="priorityTag(task.priority).type">
+          </div>
+          <el-empty v-else :image-size="48" description="暂无内容" />
+        </div>
+
+        <div class="field">
+          <div class="field-head">
+            <label>生成任务</label>
+            <el-button
+              v-if="editable"
+              text
+              type="primary"
+              :icon="Plus"
+              @click="addTask"
+            >
+              添加任务
+            </el-button>
+          </div>
+          <div class="task-list">
+            <div
+              v-for="(task, index) in result.generated_tasks"
+              :key="index"
+              class="task-row"
+            >
+              <div class="task-number">{{ index + 1 }}</div>
+              <div class="task-fields">
+                <el-input
+                  v-model="task.title"
+                  placeholder="任务标题"
+                  :disabled="!editable"
+                />
+                <el-input
+                  v-model="task.description"
+                  placeholder="任务描述（可选）"
+                  :disabled="!editable"
+                />
+              </div>
+              <el-select
+                v-model="task.priority"
+                :disabled="!editable"
+                class="priority-select"
+              >
+                <el-option label="高" value="high" />
+                <el-option label="中" value="medium" />
+                <el-option label="低" value="low" />
+              </el-select>
+              <el-tag :type="priorityTag(task.priority).type">
                 {{ priorityTag(task.priority).text }}
               </el-tag>
-              <span v-if="task.estimated_hours" class="task-hours">
-                约 {{ task.estimated_hours }}h
-              </span>
+              <el-button
+                v-if="editable"
+                text
+                type="danger"
+                :icon="Delete"
+                aria-label="删除任务"
+                @click="result.generated_tasks.splice(index, 1)"
+              />
             </div>
           </div>
         </div>
-        <p v-else class="block-empty">未生成任务</p>
-      </section>
 
-      <!-- 第五步：确认结果 -> 保存为项目 -->
-      <section class="result-footer">
-        <div class="footer-tip">
-          <span v-if="result.confirmed" class="confirmed-badge">已确认</span>
-          <span>确认解析结果无误后，可保存为项目并进入任务管理。</span>
-        </div>
-        <div class="footer-actions">
-          <el-button @click="goNew">重新解析</el-button>
+        <div class="actions">
+          <span class="action-tip">
+            {{
+              editable
+                ? '确认后结果将锁定，并可生成项目任务。'
+                : '结果已锁定，可继续创建或打开对应项目。'
+            }}
+          </span>
+          <el-button v-if="editable" :loading="saving" @click="saveChanges()"
+            >保存修改</el-button
+          >
+          <el-button
+            v-if="editable"
+            type="success"
+            plain
+            :loading="confirming"
+            @click="handleConfirm"
+            >确认结果</el-button
+          >
           <el-button
             type="primary"
-            :loading="saving"
-            :disabled="result.confirmed"
+            :loading="creatingProject"
             @click="handleSaveAsProject"
           >
-            {{ saving
-              ? (confirming ? '确认中...' : '保存中...')
-              : result.confirmed ? '已保存为项目' : '确认并保存为项目' }}
+            {{ result.is_confirmed ? '保存为项目' : '确认并保存为项目' }}
           </el-button>
         </div>
       </section>
@@ -247,286 +365,129 @@ onMounted(() => {
 
 <style lang="scss" scoped>
 .parse-result {
-  max-width: 920px;
+  max-width: 980px;
+  margin: 0 auto;
 }
-
-.result-loading {
-  background: var(--color-surface);
+.card {
+  padding: 24px;
   border-radius: var(--radius-card);
+  background: var(--color-surface);
   box-shadow: var(--shadow-card);
-  padding: 32px;
 }
-
-/* 概览卡 */
-.overview-card {
-  background: var(--color-surface);
-  border-radius: var(--radius-card);
-  box-shadow: var(--shadow-card);
-  padding: 28px 32px;
+.result-head {
   display: flex;
-  gap: 24px;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 20px;
-}
-
-.overview-main {
-  flex: 1;
-  min-width: 0;
-
-  .overview-label {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 13px;
-    color: var(--color-text-soft);
-    margin-bottom: 8px;
-  }
-
-  .overview-goal {
-    margin: 0;
-    font-size: 20px;
-    font-weight: 600;
-    line-height: 1.5;
-    color: var(--color-text);
-  }
-}
-
-.overview-side {
-  flex-shrink: 0;
-}
-
-.overview-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-
-  &-icon {
-    font-size: 20px;
-    color: var(--color-primary);
-  }
-
-  &-label {
-    font-size: 12px;
-    color: var(--color-text-soft);
-  }
-
-  &-value {
-    font-size: 15px;
-    font-weight: 600;
-    color: var(--color-text);
-  }
-}
-
-/* 区块网格 */
-.result-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 20px;
   margin-bottom: 20px;
 }
-
-.block-card {
-  background: var(--color-surface);
-  border-radius: var(--radius-card);
-  box-shadow: var(--shadow-card);
-  padding: 24px;
+.result-head h2 {
+  margin: 10px 0 0;
+  color: var(--color-text);
+  font-size: 21px;
 }
-
-.block-head {
+.eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--color-text-soft);
+  font-size: 12px;
+}
+.edit-card {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.field > label,
+.field-head label {
+  color: var(--color-text);
+  font-size: 14px;
+  font-weight: 650;
+}
+.field-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.editable-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.editable-row {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 16px;
-
-  h3 {
-    margin: 0;
-    font-size: 15px;
-    font-weight: 600;
-    color: var(--color-text);
-  }
-
-  .block-count {
-    margin-left: auto;
-    font-size: 12px;
-    color: var(--color-text-soft);
-    background: var(--color-bg);
-    padding: 2px 8px;
-    border-radius: 10px;
-  }
 }
-
-.block-icon {
-  font-size: 18px;
-
-  &--blue {
-    color: var(--color-primary);
-  }
-
-  &--green {
-    color: var(--color-success);
-  }
-
-  &--orange {
-    color: var(--color-warning);
-  }
-}
-
-.block-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-
-  li {
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
-    padding: 8px 0;
-    font-size: 14px;
-    line-height: 1.6;
-    color: var(--color-text);
-
-    & + li {
-      border-top: 1px dashed var(--color-border);
-    }
-  }
-}
-
-.list-dot {
-  flex-shrink: 0;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: var(--color-primary-soft);
-  color: var(--color-primary-deep);
-  font-size: 11px;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-top: 1px;
-
-  &--warn {
-    background: rgba(239, 159, 57, 0.15);
-    color: var(--color-warning);
-  }
-}
-
-.block-empty {
-  margin: 0;
-  font-size: 13px;
-  color: var(--color-text-soft);
-}
-
-/* 任务清单 */
-.tasks-card {
-  background: var(--color-surface);
-  border-radius: var(--radius-card);
-  box-shadow: var(--shadow-card);
-  padding: 24px;
-  margin-bottom: 20px;
-}
-
 .task-list {
   display: flex;
   flex-direction: column;
   gap: 10px;
 }
-
-.task-item {
+.task-row {
   display: flex;
-  gap: 14px;
-  padding: 14px 16px;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-control);
-  transition: box-shadow 0.2s;
-
-  &:hover {
-    box-shadow: var(--shadow-card);
-  }
 }
-
-.task-index {
-  flex-shrink: 0;
+.task-number {
   width: 26px;
   height: 26px;
+  flex: 0 0 26px;
+  display: grid;
+  place-items: center;
   border-radius: 7px;
-  background: linear-gradient(
-    135deg,
-    var(--color-primary),
-    var(--color-primary-deep)
-  );
-  color: #fff;
-  font-size: 13px;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  background: var(--color-primary-soft);
+  color: var(--color-primary-deep);
+  font-size: 12px;
+  font-weight: 700;
 }
-
-.task-main {
+.task-fields {
   flex: 1;
   min-width: 0;
-
-  .task-title {
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--color-text);
-    line-height: 1.5;
-  }
-
-  .task-desc {
-    margin: 4px 0 0;
-    font-size: 13px;
-    color: var(--color-text-soft);
-    line-height: 1.6;
-  }
+  display: grid;
+  grid-template-columns: minmax(180px, 0.8fr) minmax(220px, 1.2fr);
+  gap: 8px;
 }
-
-.task-meta {
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 6px;
-
-  .task-hours {
-    font-size: 12px;
-    color: var(--color-text-soft);
-  }
+.priority-select {
+  width: 92px;
 }
-
-/* 底部操作 */
-.result-footer {
-  background: var(--color-surface);
-  border-radius: var(--radius-card);
-  box-shadow: var(--shadow-card);
-  padding: 20px 28px;
+.actions {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-
-  .footer-tip {
-    font-size: 13px;
-    color: var(--color-text-soft);
-    display: flex;
-    align-items: center;
-    gap: 8px;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 20px;
+  border-top: 1px solid var(--color-border);
+}
+.action-tip {
+  margin-right: auto;
+  color: var(--color-text-soft);
+  font-size: 13px;
+}
+@media (max-width: 760px) {
+  .result-head,
+  .actions {
+    align-items: stretch;
+    flex-direction: column;
   }
-
-  .confirmed-badge {
-    padding: 2px 8px;
-    border-radius: 4px;
-    background: rgba(31, 154, 103, 0.12);
-    color: var(--color-success);
-    font-size: 12px;
-    font-weight: 600;
+  .task-row {
+    align-items: stretch;
+    flex-wrap: wrap;
   }
-
-  .footer-actions {
-    display: flex;
-    gap: 12px;
+  .task-fields {
+    flex-basis: calc(100% - 46px);
+    grid-template-columns: 1fr;
+  }
+  .action-tip {
+    margin: 0 0 4px;
   }
 }
 </style>

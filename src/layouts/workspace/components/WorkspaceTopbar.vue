@@ -2,8 +2,9 @@
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowDown, Expand, Plus } from '@element-plus/icons-vue'
+import { ArrowDown, Expand, Moon, Plus, Sunny } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
+import { useTheme } from '@/composables/useTheme'
 import { findWorkspaceNavItem } from '@/constants/navigation'
 import { useWorkspaceSidebar } from '../composables/useWorkspaceSidebar'
 
@@ -11,6 +12,7 @@ const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 const { openMobileNav } = useWorkspaceSidebar()
+const { isDark, themeToggleLabel, toggleTheme } = useTheme()
 
 const currentItem = computed(() => findWorkspaceNavItem(route.path))
 
@@ -80,6 +82,21 @@ async function handleLogout() {
         新建解析
       </el-button>
 
+      <button
+        class="workspace-topbar__theme-toggle"
+        type="button"
+        role="switch"
+        :class="{ 'is-dark': isDark }"
+        :title="themeToggleLabel"
+        :aria-label="themeToggleLabel"
+        :aria-checked="isDark"
+        @click="toggleTheme"
+      >
+        <el-icon class="workspace-topbar__theme-icon" aria-hidden="true">
+          <Sunny v-if="isDark" />
+          <Moon v-else />
+        </el-icon>
+      </button>
       <el-dropdown trigger="click">
         <button class="workspace-topbar__user" type="button">
           <span class="workspace-topbar__avatar" aria-hidden="true">
@@ -175,6 +192,59 @@ async function handleLogout() {
     gap: 12px;
   }
 
+  &__theme-toggle {
+    width: 38px;
+    height: 38px;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 1px solid var(--color-border);
+    border-radius: 50%;
+    background: var(--color-bg);
+    color: var(--color-text-soft);
+    cursor: pointer;
+    transition:
+      color 0.18s ease,
+      border-color 0.18s ease,
+      background-color 0.18s ease,
+      box-shadow 0.18s ease,
+      transform 0.18s ease;
+
+    &:hover {
+      border-color: var(--color-primary);
+      background: var(--color-primary-soft);
+      color: var(--color-primary-deep);
+      box-shadow: 0 4px 14px rgba(56, 165, 255, 0.18);
+      transform: translateY(-1px);
+    }
+
+    &:active {
+      transform: translateY(0) scale(0.94);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--color-primary);
+      outline-offset: 2px;
+    }
+
+    &.is-dark {
+      border-color: rgba(102, 186, 255, 0.5);
+      background: var(--color-primary-soft);
+      color: #ffd166;
+    }
+  }
+
+  &__theme-icon {
+    font-size: 18px;
+    transition: transform 0.25s ease;
+  }
+
+  &__theme-toggle:hover &__theme-icon {
+    transform: rotate(16deg);
+  }
+
   &__user {
     display: flex;
     align-items: center;
@@ -243,7 +313,9 @@ async function handleLogout() {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .workspace-topbar__user {
+  .workspace-topbar__user,
+  .workspace-topbar__theme-toggle,
+  .workspace-topbar__theme-icon {
     transition: none;
   }
 }

@@ -10,7 +10,7 @@ TaskPilot Web 是「任务型文档 AI 拆解助手」的前端仓库，配套�
 登录 → 文档录入 → 创建解析任务 → 轮询解析状态 → 查看/编辑解析结果 → 保存为项目 → 管理任务
 ```
 
-当前只有账号体系与工作台骨架落地，`parse/new`、`projects`、`history`、`profile` 四个路由都还指向占位页 `ModulePlaceholderView.vue`。最高优先级的闭环是 `documents → parse-jobs → parse-results`。
+当前账号体系与核心主链路已经落地：文本录入、异步解析、结果编辑与确认、保存为项目、查看项目任务、更新任务状态。`history`、`profile` 仍为占位页，工作台仍使用演示数据；下一阶段优先补历史回溯与工作台真实数据。
 
 ## 常用命令
 

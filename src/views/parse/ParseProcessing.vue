@@ -2,7 +2,7 @@
 // 第三步：处理中状态页
 // 进入后轮询 GET /parse-jobs/:jobId：
 //   - pending / processing -> 继续轮询
-//   - succeeded -> 跳结果页 /parse/:jobId/result
+//   - success -> 跳结果页 /parse/:jobId/result
 //   - failed -> 展示失败原因，可返回重新录入
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -32,7 +32,7 @@ const statusText = computed(() => {
       return '排队中'
     case 'processing':
       return '解析中'
-    case 'succeeded':
+    case 'success':
       return '解析完成'
     case 'failed':
       return '解析失败'
@@ -67,7 +67,7 @@ async function poll() {
     statusView.value = data.status
     loading.value = false
 
-    if (data.status === 'succeeded') {
+    if (data.status === 'success') {
       // 成功：跳结果详情页
       router.replace(`/parse/${jobId}/result`)
       return
@@ -115,14 +115,19 @@ onBeforeUnmount(clearTimer)
   <div class="parse-processing">
     <div class="processing-card">
       <!-- 加载/处理中 -->
-      <div v-if="loading || statusView === 'pending' || statusView === 'processing'"
-           class="state state--loading">
+      <div
+        v-if="
+          loading || statusView === 'pending' || statusView === 'processing'
+        "
+        class="state state--loading"
+      >
         <div class="state-icon state-icon--spin">
           <el-icon><Loading /></el-icon>
         </div>
         <h2>{{ statusText }}</h2>
         <p class="state-desc">
-          AI 正在分析你的文档内容，拆解目标、交付物、要求与任务清单，通常需要 10-30 秒，请稍候。
+          AI 正在分析你的文档内容，拆解目标、交付物、要求与任务清单，通常需要
+          10-30 秒，请稍候。
         </p>
         <div class="progress-track">
           <div class="progress-bar" />
@@ -131,7 +136,7 @@ onBeforeUnmount(clearTimer)
       </div>
 
       <!-- 成功（短暂展示后自动跳转） -->
-      <div v-else-if="statusView === 'succeeded'" class="state state--success">
+      <div v-else-if="statusView === 'success'" class="state state--success">
         <div class="state-icon state-icon--success">
           <el-icon><CircleCheck /></el-icon>
         </div>

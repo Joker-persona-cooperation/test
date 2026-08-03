@@ -102,16 +102,19 @@ taskpilot-web/
 
 | 路由         | 页面                        | 说明                              |
 | ------------ | --------------------------- | --------------------------------- |
-| `/login`     | `LoginView.vue`             | 登录页                            |
-| `/register`  | `RegisterView.vue`          | 注册页                            |
-| `/dashboard` | `DashboardView.vue`         | 工作台首页，当前使用演示数据      |
-| `/parse/new` | `ModulePlaceholderView.vue` | 占位，待接入 documents/parse-jobs |
-| `/projects`  | `ModulePlaceholderView.vue` | 占位，待接入 projects/tasks       |
-| `/history`   | `ModulePlaceholderView.vue` | 占位，待接入 history              |
-| `/profile`   | `ModulePlaceholderView.vue` | 占位，待完善账号设置              |
-| `*`          | `NotFoundView.vue`          | 404 页面                          |
+| `/login`                       | `LoginView.vue`          | 登录页                                      |
+| `/register`                    | `RegisterView.vue`       | 注册页                                      |
+| `/dashboard`                   | `DashboardView.vue`      | 工作台首页，当前使用演示数据                |
+| `/parse/new`                   | `ParseNew.vue`           | 文本录入并创建解析任务                      |
+| `/parse/:jobId/processing`     | `ParseProcessing.vue`    | 轮询解析任务状态                            |
+| `/parse/:jobId/result`         | `ParseResult.vue`        | 编辑、确认解析结果并保存为项目              |
+| `/projects`                    | `ProjectListView.vue`    | 进行中和已归档项目列表                      |
+| `/projects/:projectId`         | `ProjectDetailView.vue`  | 项目任务看板及任务状态更新                  |
+| `/history`                     | `ModulePlaceholderView.vue` | 占位，待接入 history                     |
+| `/profile`                     | `ModulePlaceholderView.vue` | 占位，待完善账号设置                     |
+| `*`                            | `NotFoundView.vue`       | 404 页面                                    |
 
-占位页的标题、描述、待接入接口清单全部写在路由 `meta` 中，由 `ModulePlaceholderView` 统一渲染。
+尚未实现模块的标题、描述、待接入接口清单写在路由 `meta` 中，由 `ModulePlaceholderView` 统一渲染。
 
 ---
 

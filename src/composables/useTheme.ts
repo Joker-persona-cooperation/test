@@ -1,6 +1,6 @@
 // 主题切换组合式逻辑
 // 点击即直接切换，不做扩散动画；偏好持久化到 localStorage
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 
 const THEME_KEY = 'taskpilot_theme'
 
@@ -9,6 +9,7 @@ const isDark = ref(document.documentElement.classList.contains('dark'))
 
 function applyTheme(dark: boolean) {
   document.documentElement.classList.toggle('dark', dark)
+  document.documentElement.style.colorScheme = dark ? 'dark' : 'light'
   try {
     localStorage.setItem(THEME_KEY, dark ? 'dark' : 'light')
   } catch {
@@ -25,6 +26,10 @@ function toggle() {
   applyTheme(next)
 }
 
+const themeToggleLabel = computed(() =>
+  isDark.value ? '切换到亮色模式' : '切换到暗色模式',
+)
+
 export function useTheme() {
-  return { isDark, toggle }
+  return { isDark, themeToggleLabel, toggleTheme: toggle }
 }

@@ -2,7 +2,7 @@
 import { http } from './client'
 
 // 解析任务状态：待处理 / 处理中 / 成功 / 失败
-export type ParseJobStatus = 'pending' | 'processing' | 'succeeded' | 'failed'
+export type ParseJobStatus = 'pending' | 'processing' | 'success' | 'failed'
 
 export interface CreateParseJobParams {
   document_id: number
@@ -20,37 +20,37 @@ export interface ParseJob {
 
 // 解析结果中拆解出的单个任务
 export interface ParseTask {
-  id: number
   title: string
-  description?: string
+  description: string | null
   // 优先级：high / medium / low
   priority?: 'high' | 'medium' | 'low'
-  // 预估工时（小时）
-  estimated_hours?: number
-  // 排序序号
-  order?: number
+  // 任务截止时间
+  deadline: string | null
 }
 
 // 解析结果结构：对应文档拆解后的目标/截止时间/交付物/要求/风险/任务
 export interface ParseResult {
   id: number
-  job_id: number
+  parse_job_id: number
   document_id: number
-  // 目标
-  goal: string
+  title: string
+  summary: string
   // 截止时间（ISO 字符串）
-  deadline?: string
+  deadline: string | null
   // 交付物列表
   deliverables: string[]
   // 关键要求列表
-  requirements: string[]
+  key_requirements: string[]
   // 风险提醒列表
-  risks: string[]
+  risk_warnings: string[]
   // 拆解出的任务清单
-  tasks: ParseTask[]
+  generated_tasks: ParseTask[]
   // 是否已确认（第五步确认结果用）
-  confirmed: boolean
+  is_confirmed: boolean
+  version: number
+  ai_model?: string
   created_at: string
+  updated_at: string
 }
 
 // 第二步：创建解析任务，拿到 jobId

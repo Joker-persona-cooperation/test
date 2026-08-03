@@ -174,6 +174,15 @@ export const http = {
   put<T>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
     return request.put<Envelope<T>>(url, data, config).then((r) => r.data.data)
   },
+  patch<T>(
+    url: string,
+    data?: unknown,
+    config?: AxiosRequestConfig,
+  ): Promise<T> {
+    return request
+      .patch<Envelope<T>>(url, data, config)
+      .then((r) => r.data.data)
+  },
   delete<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
     return request.delete<Envelope<T>>(url, config).then((r) => r.data.data)
   },

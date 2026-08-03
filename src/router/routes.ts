@@ -64,22 +64,19 @@ export const routes: RouteRecordRaw[] = [
       {
         path: 'projects',
         name: 'projects',
-        component: ModulePlaceholderView,
+        component: () => import('@/views/projects/ProjectListView.vue'),
         meta: {
           title: '项目管理',
-          description: '这里将展示项目列表、项目详情、任务状态和项目归档管理。',
-          statusLabel: '待接入 projects + tasks',
-          suggestedActions: [
-            '展示项目列表与项目状态筛选。',
-            '进入项目详情后展示任务泳道和任务进度。',
-            '支持从解析结果直接保存为项目。',
-          ],
-          endpointGroups: [
-            'POST /api/v1/projects',
-            'GET /api/v1/projects',
-            'GET /api/v1/projects/{projectId}',
-            'GET /api/v1/projects/{projectId}/tasks',
-          ],
+          description: '浏览进行中或已归档项目，查看任务整体进度。',
+        },
+      },
+      {
+        path: 'projects/:projectId',
+        name: 'project-detail',
+        component: () => import('@/views/projects/ProjectDetailView.vue'),
+        meta: {
+          title: '项目任务',
+          description: '查看项目任务并更新待办、进行中和已完成状态。',
         },
       },
       {
