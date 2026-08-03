@@ -230,7 +230,73 @@
 
 ---
 
-## 8. 枚举 ↔ 前端常量对照（务必对齐，避免标签错位）
+## 8. 工作台 Dashboard
+
+| 方法 | 路径 | 鉴权 | 说明 | 前端封装 |
+|---|---|---|---|---|
+| GET | `/dashboard/stats` | Bearer | 查询当前用户的四项工作台概览统计 | 待在 `dashboard.ts` 补充 |
+| GET | `/dashboard/reminders` | Bearer | 查询未来 7×24 小时内到期的未完成任务 | 待在 `dashboard.ts` 补充 |
+
+### 8.1 概览统计
+
+`GET /dashboard/stats` 的响应 `data`：
+
+```json
+{
+  "documents": 12,
+  "parse_jobs": 8,
+  "active_projects": 5,
+  "open_tasks": 23
+}
+```
+
+统计口径：
+
+- `documents`：当前用户未软删除的文档总数。
+- `parse_jobs`：当前用户的解析任务总数，包含全部任务状态。
+- `active_projects`：当前用户状态为 `active` 的项目总数。
+- `open_tasks`：当前用户 active 项目内状态为 `todo` 或 `doing` 的任务总数，不统计 archived/deleted 项目任务。
+
+### 8.2 今日提醒
+
+`GET /dashboard/reminders` 的响应 `data`：
+
+```json
+{
+  "items": [
+    {
+      "id": 101,
+      "project_id": 20,
+      "title": "提交项目说明书",
+      "project": "创新创业比赛报名",
+      "deadline": "2026-08-05T18:00:00+08:00",
+      "days_left": 2
+    }
+  ]
+}
+```
+
+提醒规则：
+
+- 仅返回当前时刻起 7×24 小时内到期的任务，最多 10 条。
+- 仅包含 active 项目内状态为 `todo` 或 `doing` 的任务。
+- 排除已完成、已过期、无截止时间以及 archived/deleted 项目任务。
+- 按 `deadline ASC, id ASC` 排序。
+- `days_left` 按剩余时长向上取整；不足 24 小时为 `1`，恰好到期为 `0`。Dashboard 中可继续按 `days_left <= 3` 判断紧急提醒。
+
+### 8.3 前端接入注意事项
+
+- 当前 `src/api/dashboard.ts` 只有类型定义，尚未提供请求函数；需要新增 `getDashboardStats()` 和 `getDashboardReminders()`。
+- 后端保持项目统一的 snake_case 契约，而现有 Dashboard mock 类型使用 `parseJobs`、`activeProjects`、`openTasks`、`projectId`、`daysLeft`。建议在 API 层映射成现有视图模型，避免让 `DashboardView.vue` 同时处理两套命名。
+- `DashboardView.vue` 接入后，统计卡片改用统计接口结果，“今日提醒”列表与顶部即将到期数量改用提醒接口的 `items`。
+- `deadline` 为 ISO 8601 时间，列表展示前由前端统一格式化；不要直接依赖 mock 中的 `YYYY-MM-DD` 字符串格式。
+- 本次接口不覆盖“最近解析记录”，该模块仍需使用历史接口或后续独立聚合接口接入。
+
+⚠️ **缺口检查**：工作台统计与提醒后端接口已可用，但 `src/api/dashboard.ts` 和 `DashboardView.vue` 仍未联调，`mockStats`、`mockReminders` 仍在使用。
+
+---
+
+## 9. 枚举 ↔ 前端常量对照（务必对齐，避免标签错位）
 
 | 枚举 | 取值 | 前端常量位置 |
 |---|---|---|
@@ -246,24 +312,25 @@
 
 ---
 
-## 9. 联调前置清单（后端需给前端的）
+## 10. 联调前置清单（后端需给前端的）
 
 - [x] `openapi.yaml`（接口契约，已具备）
 - [x] 统一响应信封 + 鉴权/CSRF 说明（本文已汇总）
 - [x] 本地服务地址与启动方式（`make run`，默认 `:8888`）
 - [x] CORS 已放行 `http://localhost:5173` / `5174`
 - [ ] **错误码语义表**：`pkg/errors/code.go` 中的业务 `code` 含义（如 `ErrRefreshTokenReused`、`ErrCacheUnavailable` 等），建议后端导出一份 Markdown 供前端判断跳转/提示。
-- [ ] **枚举对照表**：见第 8 节，建议后端维护一份权威枚举清单。
+- [ ] **枚举对照表**：见第 9 节，建议后端维护一份权威枚举清单。
 
 ---
 
-## 10. 前端待办（联调前补齐）
+## 11. 前端待办（联调前补齐）
 
-1. **新建 `src/api/task.ts`**：补齐第 6 节 5 个未封装的写接口（create/update/status/delete/reorder）。
-2. **新建 `src/api/history.ts`**：补齐第 7 节 4 个只读历史接口。
-3. **校验 `document.ts` 分页结构**：确认按 `{items,total,page,page_size}` 解析。
-4. **补齐枚举常量**：项目/任务/优先级的 `LABEL` 与 `TAG`（颜色）映射（第 8 节）。
-5. **乐观锁 409 处理**：`PUT` 解析结果/项目/任务返回 409 时，前端应重新拉取最新 `version` 后提示用户重试。
+1. **补齐 `src/api/dashboard.ts` 并替换工作台 mock**：接入第 8 节统计与提醒接口，在 API 层完成 snake_case 到现有驼峰视图模型的映射。
+2. **新建 `src/api/task.ts`**：补齐第 6 节 5 个未封装的写接口（create/update/status/delete/reorder）。
+3. **新建 `src/api/history.ts`**：补齐第 7 节 4 个只读历史接口。
+4. **校验 `document.ts` 分页结构**：确认按 `{items,total,page,page_size}` 解析。
+5. **补齐枚举常量**：项目/任务/优先级的 `LABEL` 与 `TAG`（颜色）映射（第 9 节）。
+6. **乐观锁 409 处理**：`PUT` 解析结果/项目/任务返回 409 时，前端应重新拉取最新 `version` 后提示用户重试。
 
 ---
 
