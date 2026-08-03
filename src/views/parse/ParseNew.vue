@@ -24,7 +24,11 @@ const form = reactive({
 const rules: FormRules = {
   content: [
     { required: true, message: '请输入需要解析的文档内容', trigger: 'blur' },
-    { min: 20, message: '内容过短，建议至少 20 个字符以便解析', trigger: 'blur' },
+    {
+      min: 20,
+      message: '内容过短，建议至少 20 个字符以便解析',
+      trigger: 'blur',
+    },
   ],
 }
 
@@ -78,7 +82,10 @@ function fillExample() {
         </div>
         <div class="head-text">
           <h2>新建解析</h2>
-          <p>粘贴任务文档或需求描述，AI 将自动拆解为目标、交付物、要求、风险与任务清单。</p>
+          <p>
+            粘贴任务文档或需求描述，AI
+            将自动拆解为目标、交付物、要求、风险与任务清单。
+          </p>
         </div>
       </div>
 
