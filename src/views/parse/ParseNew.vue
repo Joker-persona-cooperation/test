@@ -22,6 +22,10 @@ const form = reactive({
 })
 
 const rules: FormRules = {
+  title: [
+    { required: true, message: '请输入文档标题', trigger: 'blur' },
+    { max: 80, message: '标题不能超过 80 个字符', trigger: 'blur' },
+  ],
   content: [
     { required: true, message: '请输入需要解析的文档内容', trigger: 'blur' },
     {
@@ -97,10 +101,10 @@ function fillExample() {
         size="large"
         @submit.prevent="handleSubmit"
       >
-        <el-form-item label="标题（可选）" prop="title">
+        <el-form-item label="标题" prop="title">
           <el-input
             v-model="form.title"
-            placeholder="给本次解析起个名字，留空将自动生成"
+            placeholder="给本次解析起个名字"
             maxlength="80"
             show-word-limit
             clearable

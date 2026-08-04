@@ -11,9 +11,13 @@ export interface CreateParseJobParams {
 export interface ParseJob {
   id: number
   document_id: number
+  job_type: 'ai_parse'
   status: ParseJobStatus
+  retry_count: number
   // 失败时后端返回的失败原因
   error_message?: string
+  started_at?: string
+  finished_at?: string
   created_at: string
   updated_at: string
 }
