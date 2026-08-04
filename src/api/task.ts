@@ -28,18 +28,18 @@ export interface TaskListResponse {
 
 export interface CreateTaskParams {
   title: string
-  description: string | null
   priority: TaskPriority
-  deadline: string | null
+  description?: string | null
+  deadline?: string | null
 }
 
 export interface UpdateTaskParams {
   // 乐观锁版本号：PUT 必须携带当前 version，并发改动会返回 409（code 10007）
   version: number
   title: string
-  description: string | null
   priority: TaskPriority
-  deadline: string | null
+  description?: string | null
+  deadline?: string | null
 }
 
 export interface ReorderTasksParams {
@@ -49,8 +49,13 @@ export interface ReorderTasksParams {
 }
 
 // 查询项目下全部任务（后端按 sort_order 升序返回）
-export function getProjectTasks(projectId: number): Promise<TaskListResponse> {
-  return http.get<TaskListResponse>(`/projects/${projectId}/tasks`)
+export function getProjectTasks(
+  projectId: number,
+  status?: TaskStatus,
+): Promise<TaskListResponse> {
+  return http.get<TaskListResponse>(`/projects/${projectId}/tasks`, {
+    params: status ? { status } : undefined,
+  })
 }
 
 // 项目内手动新增任务：source_type=manual，落库后 sort_order 追加到对应列末尾

@@ -4,12 +4,15 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   ArrowLeft,
+  Box,
   Calendar,
   Delete,
   Document,
+  Edit,
   MoreFilled,
   Plus,
   Refresh,
+  Upload,
 } from '@element-plus/icons-vue'
 import { isApiError } from '@/api/errors'
 import { getDocument, type Document as SourceDocument } from '@/api/document'
@@ -504,16 +507,24 @@ onMounted(() => {
             <template #dropdown>
               <el-dropdown-menu>
                 <template v-if="project.status === 'active'">
-                  <el-dropdown-item command="edit">编辑项目</el-dropdown-item>
-                  <el-dropdown-item command="archive">归档</el-dropdown-item>
+                  <el-dropdown-item command="edit">
+                    <el-icon><Edit /></el-icon>
+                    编辑项目
+                  </el-dropdown-item>
+                  <el-dropdown-item command="archive">
+                    <el-icon><Box /></el-icon>
+                    归档
+                  </el-dropdown-item>
                 </template>
                 <template v-else>
-                  <el-dropdown-item command="unarchive"
-                    >取消归档</el-dropdown-item
-                  >
-                  <el-dropdown-item command="delete" divided
-                    >删除项目</el-dropdown-item
-                  >
+                  <el-dropdown-item command="unarchive">
+                    <el-icon><Upload /></el-icon>
+                    取消归档
+                  </el-dropdown-item>
+                  <el-dropdown-item command="delete" divided class="danger-item" style="color: var(--el-color-danger)">
+                    <el-icon><Delete /></el-icon>
+                    删除项目
+                  </el-dropdown-item>
                 </template>
               </el-dropdown-menu>
             </template>

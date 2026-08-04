@@ -31,8 +31,8 @@ export interface CreateProjectResponse {
 export interface UpdateProjectParams {
   version: number
   name: string
-  description: string | null
-  deadline: string | null
+  description?: string | null
+  deadline?: string | null
 }
 
 export interface ProjectListResponse {

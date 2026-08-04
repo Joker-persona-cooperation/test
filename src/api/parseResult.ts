@@ -13,7 +13,7 @@ export interface UpdateParseResultParams {
   version: number
   title: string
   summary: string
-  deadline: string | null
+  deadline?: string | null
   deliverables: string[]
   key_requirements: string[]
   risk_warnings: string[]

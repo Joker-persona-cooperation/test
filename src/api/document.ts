@@ -5,18 +5,24 @@ import { http } from './client'
 export type DocumentSource = 'text' | 'pdf'
 
 export interface TextDocumentParams {
-  // 标题可选，缺省时由后端按内容截断生成
-  title?: string
+  // 标题必填，后端限制最多 255 个 Unicode 字符
+  title: string
   // 正文内容，必填
   text: string
 }
 
 export interface Document {
   id: number
-  title: string
-  content: string
   source_type: DocumentSource
+  title?: string
+  file_name?: string
+  file_url?: string
+  page_count?: number
+  file_size?: number
+  status: 'uploaded' | 'ready' | 'failed'
+  content?: string
   created_at: string
+  updated_at: string
 }
 
 // 提交纯文本文档：第一步录入入口
