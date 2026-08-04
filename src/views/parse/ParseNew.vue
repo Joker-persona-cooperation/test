@@ -39,8 +39,8 @@ async function handleSubmit() {
   try {
     // 第一步：录入文本文档
     const doc = await createTextDocument({
-      title: form.title.trim() || undefined,
-      content: form.content,
+      title: form.title.trim(),
+      text: form.content,
     })
     // 第二步：基于文档创建解析任务
     const job = await createParseJob({ document_id: doc.id })

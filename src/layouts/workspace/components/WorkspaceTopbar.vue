@@ -24,8 +24,7 @@ const description = computed(
 )
 const statusLabel = computed(() => route.meta.statusLabel)
 
-// 新建解析是全局主动作，但在该页自身没有意义，避免自跳转的空点击
-const showCreateAction = computed(() => route.name !== 'parse-create')
+const showCreateAction = computed(() => route.name === 'dashboard')
 
 const displayName = computed(
   () => authStore.userInfo?.nickname || authStore.userInfo?.email || '未登录',
@@ -38,6 +37,7 @@ async function handleLogout() {
       confirmButtonText: '退出',
       cancelButtonText: '取消',
       type: 'warning',
+      customClass: 'rounded-message-box',
     })
   } catch {
     // 用户取消退出
@@ -75,6 +75,7 @@ async function handleLogout() {
     <div class="workspace-topbar__actions">
       <el-button
         v-if="showCreateAction"
+        class="workspace-topbar__create"
         type="primary"
         :icon="Plus"
         @click="router.push({ name: 'parse-create' })"
@@ -126,6 +127,8 @@ async function handleLogout() {
 
 <style lang="scss" scoped>
 .workspace-topbar {
+  min-height: 75px;
+  box-sizing: border-box;
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -194,6 +197,10 @@ async function handleLogout() {
     display: flex;
     align-items: center;
     gap: 12px;
+  }
+
+  &__create {
+    border-radius: 14px;
   }
 
   &__theme-toggle {

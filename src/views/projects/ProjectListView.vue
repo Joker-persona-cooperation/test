@@ -1,14 +1,29 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { Calendar, FolderOpened } from '@element-plus/icons-vue'
-import { getProjects, type Project } from '@/api/project'
+import { ElMessage } from 'element-plus'
+import { Calendar, FolderOpened, Plus } from '@element-plus/icons-vue'
+import { createProject, getProjects, type Project } from '@/api/project'
+import {
+  getParseResultHistory,
+  type ParseResultHistoryResponse,
+} from '@/api/parseResult'
+import type { ParseResult } from '@/api/parseJob'
 
 const router = useRouter()
 const projects = ref<Project[]>([])
 const status = ref<'active' | 'archived'>('active')
 const loading = ref(false)
 const errorMsg = ref('')
+const createDialogVisible = ref(false)
+const parseResults = ref<ParseResult[]>([])
+const loadingResults = ref(false)
+const creatingProject = ref(false)
+const selectedResultId = ref<number | null>(null)
+
+const selectedResult = computed(() =>
+  parseResults.value.find((item) => item.id === selectedResultId.value),
+)
 
 function formatDate(value: string | null) {
   if (!value) return '未设置截止时间'
@@ -29,6 +44,55 @@ async function loadProjects() {
   }
 }
 
+async function openCreateDialog() {
+  createDialogVisible.value = true
+  loadingResults.value = true
+  selectedResultId.value = null
+  try {
+    const [data, activeProjects, archivedProjects]: [
+      ParseResultHistoryResponse,
+      Awaited<ReturnType<typeof getProjects>>,
+      Awaited<ReturnType<typeof getProjects>>,
+    ] = await Promise.all([
+      getParseResultHistory(),
+      getProjects('active'),
+      getProjects('archived'),
+    ])
+    const usedResultIds = new Set(
+      [...activeProjects.items, ...archivedProjects.items].map(
+        (item) => item.parse_result_id,
+      ),
+    )
+    parseResults.value = data.items.filter(
+      (item) => item.is_confirmed && !usedResultIds.has(item.id),
+    )
+  } finally {
+    loadingResults.value = false
+  }
+}
+
+async function handleCreateProject() {
+  if (!selectedResult.value) {
+    ElMessage.warning('请选择一条解析结果')
+    return
+  }
+  creatingProject.value = true
+  try {
+    const created = await createProject({
+      parse_result_id: selectedResult.value.id,
+      name: selectedResult.value.title,
+    })
+    ElMessage.success(`项目「${created.project.name}」已创建`)
+    createDialogVisible.value = false
+    await router.push({
+      name: 'project-detail',
+      params: { projectId: created.project.id },
+    })
+  } finally {
+    creatingProject.value = false
+  }
+}
+
 onMounted(loadProjects)
 </script>
 
@@ -43,9 +107,9 @@ onMounted(loadProjects)
         ]"
         @change="loadProjects"
       />
-      <el-button type="primary" @click="router.push({ name: 'parse-create' })"
-        >新建解析</el-button
-      >
+      <el-button type="primary" :icon="Plus" @click="openCreateDialog">
+        新建项目
+      </el-button>
     </div>
 
     <div v-loading="loading" class="project-surface">
@@ -71,9 +135,9 @@ onMounted(loadProjects)
         <el-button
           v-if="status === 'active'"
           type="primary"
-          @click="router.push({ name: 'parse-create' })"
+          @click="openCreateDialog"
         >
-          从文档创建项目
+          从解析结果创建项目
         </el-button>
       </el-empty>
 
@@ -103,6 +167,45 @@ onMounted(loadProjects)
         </button>
       </div>
     </div>
+
+    <el-dialog
+      v-model="createDialogVisible"
+      title="从解析结果新建项目"
+      width="560px"
+      class="rounded-dialog"
+    >
+      <div v-loading="loadingResults" class="result-picker">
+        <el-empty
+          v-if="!loadingResults && parseResults.length === 0"
+          :image-size="64"
+          description="暂无可创建项目的已确认解析结果"
+        />
+        <el-radio-group v-else v-model="selectedResultId">
+          <el-radio
+            v-for="result in parseResults"
+            :key="result.id"
+            :value="result.id"
+            border
+          >
+            <span class="result-option">
+              <strong>{{ result.title }}</strong>
+              <small>{{ formatDate(result.created_at) }}</small>
+            </span>
+          </el-radio>
+        </el-radio-group>
+      </div>
+      <template #footer>
+        <el-button @click="createDialogVisible = false">取消</el-button>
+        <el-button
+          type="primary"
+          :disabled="!selectedResultId"
+          :loading="creatingProject"
+          @click="handleCreateProject"
+        >
+          创建项目
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -116,6 +219,9 @@ onMounted(loadProjects)
   align-items: center;
   justify-content: space-between;
   margin-bottom: 18px;
+}
+.toolbar :deep(.el-button) {
+  border-radius: 14px;
 }
 .project-surface {
   min-height: 260px;
@@ -188,5 +294,32 @@ onMounted(loadProjects)
   gap: 5px;
   color: var(--color-text-soft);
   font-size: 12px;
+}
+.result-picker {
+  min-height: 160px;
+}
+.result-picker :deep(.el-radio-group) {
+  width: 100%;
+  display: grid;
+  gap: 10px;
+}
+.result-picker :deep(.el-radio) {
+  width: 100%;
+  height: auto;
+  margin: 0;
+  padding: 13px 14px;
+  border-radius: 12px;
+}
+.result-option {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.result-option strong {
+  color: var(--color-text);
+  font-weight: 600;
+}
+.result-option small {
+  color: var(--color-text-soft);
 }
 </style>

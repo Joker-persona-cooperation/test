@@ -8,7 +8,7 @@ export interface TextDocumentParams {
   // 标题可选，缺省时由后端按内容截断生成
   title?: string
   // 正文内容，必填
-  content: string
+  text: string
 }
 
 export interface Document {
@@ -24,4 +24,8 @@ export function createTextDocument(
   params: TextDocumentParams,
 ): Promise<Document> {
   return http.post<Document>('/documents/text', params)
+}
+
+export function getDocument(documentId: number): Promise<Document> {
+  return http.get<Document>(`/documents/${documentId}`)
 }

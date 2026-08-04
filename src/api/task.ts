@@ -31,8 +31,6 @@ export interface CreateTaskParams {
   description: string | null
   priority: TaskPriority
   deadline: string | null
-  // 新增任务落入哪一列，默认由调用方（看板列）决定
-  status: TaskStatus
 }
 
 export interface UpdateTaskParams {
@@ -42,17 +40,12 @@ export interface UpdateTaskParams {
   description: string | null
   priority: TaskPriority
   deadline: string | null
-  status: TaskStatus
-}
-
-export interface ReorderTaskItem {
-  id: number
-  sort_order: number
 }
 
 export interface ReorderTasksParams {
-  // 项目内全部任务的最新顺序：后端按传入集合整体事务重写 sort_order
-  tasks: ReorderTaskItem[]
+  project_id: number
+  // 项目内全部任务 ID 的最新顺序，后端按数组下标重写 sort_order
+  task_ids: number[]
 }
 
 // 查询项目下全部任务（后端按 sort_order 升序返回）
@@ -91,6 +84,8 @@ export function deleteTask(taskId: number): Promise<void> {
 
 // 完整有序集合事务重排：调用方需传入项目内全部任务的最新顺序，
 // 后端整体重写 sort_order，避免部分更新造成顺序空洞
-export function reorderTasks(params: ReorderTasksParams): Promise<void> {
-  return http.post<void>('/tasks/reorder', params)
+export function reorderTasks(
+  params: ReorderTasksParams,
+): Promise<TaskListResponse> {
+  return http.post<TaskListResponse>('/tasks/reorder', params)
 }

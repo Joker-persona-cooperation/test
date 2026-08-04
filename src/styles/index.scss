@@ -9,5 +9,13 @@
 
 // 主题切换时颜色变量平滑过渡，避免生硬跳变
 html {
-  transition: background-color 0.25s ease, color 0.25s ease;
+  transition:
+    background-color 0.25s ease,
+    color 0.25s ease;
+}
+
+.rounded-message-box,
+.rounded-dialog {
+  border-radius: 12px !important;
+  overflow: hidden;
 }
