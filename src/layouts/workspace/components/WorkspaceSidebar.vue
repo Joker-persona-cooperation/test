@@ -96,7 +96,7 @@ function handleNavClick() {
 
   &__brand {
     position: relative;
-    height: 64px;
+    height: 75px;
     flex-shrink: 0;
     display: flex;
     align-items: center;

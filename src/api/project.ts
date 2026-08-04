@@ -28,6 +28,13 @@ export interface CreateProjectResponse {
   tasks: Task[]
 }
 
+export interface UpdateProjectParams {
+  version: number
+  name: string
+  description: string | null
+  deadline: string | null
+}
+
 export interface ProjectListResponse {
   items: Project[]
   page: number
@@ -51,4 +58,20 @@ export function getProjects(status: 'active' | 'archived' = 'active') {
 
 export function getProject(projectId: number) {
   return http.get<Project>(`/projects/${projectId}`)
+}
+
+export function updateProject(projectId: number, params: UpdateProjectParams) {
+  return http.put<Project>(`/projects/${projectId}`, params)
+}
+
+export function archiveProject(projectId: number) {
+  return http.post<Project>(`/projects/${projectId}/archive`)
+}
+
+export function unarchiveProject(projectId: number) {
+  return http.post<Project>(`/projects/${projectId}/unarchive`)
+}
+
+export function deleteProject(projectId: number): Promise<void> {
+  return http.delete<void>(`/projects/${projectId}`)
 }

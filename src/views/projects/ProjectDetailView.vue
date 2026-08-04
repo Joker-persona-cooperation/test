@@ -3,17 +3,24 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
-  ArrowDown,
   ArrowLeft,
-  ArrowUp,
   Calendar,
   Delete,
-  EditPen,
+  Document,
+  MoreFilled,
   Plus,
   Refresh,
 } from '@element-plus/icons-vue'
 import { isApiError } from '@/api/errors'
-import { getProject, type Project } from '@/api/project'
+import { getDocument, type Document as SourceDocument } from '@/api/document'
+import {
+  archiveProject,
+  deleteProject,
+  getProject,
+  unarchiveProject,
+  updateProject,
+  type Project,
+} from '@/api/project'
 import {
   createTask,
   deleteTask,
@@ -21,7 +28,6 @@ import {
   reorderTasks,
   updateTask,
   updateTaskStatus,
-  type ReorderTaskItem,
   type Task,
 } from '@/api/task'
 import {
@@ -43,7 +49,11 @@ const errorMsg = ref('')
 // 状态切换中的任务 id，用于禁用对应卡片的下拉
 const updatingTaskIds = ref(new Set<number>())
 // 排序请求进行中的任务 id，避免连点造成顺序错乱
-const reorderingIds = ref(new Set<number>())
+const reordering = ref(false)
+const draggedTaskId = ref<number | null>(null)
+const dragOverTaskId = ref<number | null>(null)
+const suppressCardClick = ref(false)
+const sourceDocument = ref<SourceDocument | null>(null)
 
 const doneCount = computed(
   () => tasks.value.filter((task) => task.status === 'done').length,
@@ -54,6 +64,10 @@ const progress = computed(() =>
     : 0,
 )
 const readonly = computed(() => project.value?.status !== 'active')
+
+const projectDialogVisible = ref(false)
+const savingProject = ref(false)
+const projectForm = reactive({ name: '', description: '', deadline: '' })
 
 // 弹窗状态：create / edit 共用一个 form，避免两份表单逻辑漂移
 const dialogVisible = ref(false)
@@ -77,20 +91,18 @@ function columnTasks(status: TaskStatus) {
     .sort((a, b) => a.sort_order - b.sort_order)
 }
 
-function isFirstInColumn(task: Task) {
-  const list = columnTasks(task.status)
-  return list.length > 0 && list[0].id === task.id
-}
-
-function isLastInColumn(task: Task) {
-  const list = columnTasks(task.status)
-  return list.length > 0 && list[list.length - 1].id === task.id
-}
-
 function formatDate(value: string | null) {
-  if (!value) return ''
+  if (!value) return '未设置'
   const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString('zh-CN')
+  return Number.isNaN(date.getTime())
+    ? value
+    : date.toLocaleString('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
 }
 
 async function loadProjectTasks() {
@@ -113,6 +125,11 @@ async function loadProject() {
     ])
     project.value = projectData
     tasks.value = taskData.items
+    try {
+      sourceDocument.value = await getDocument(projectData.source_document_id)
+    } catch {
+      sourceDocument.value = null
+    }
   } catch (error) {
     errorMsg.value = error instanceof Error ? error.message : '项目加载失败'
   } finally {
@@ -167,6 +184,95 @@ function openEdit(task: Task) {
   dialogVisible.value = true
 }
 
+function handleCardClick(task: Task) {
+  if (!suppressCardClick.value) openEdit(task)
+}
+
+function openProjectEdit() {
+  if (!project.value || readonly.value) return
+  Object.assign(projectForm, {
+    name: project.value.name,
+    description: project.value.description ?? '',
+    deadline: project.value.deadline ?? '',
+  })
+  projectDialogVisible.value = true
+}
+
+async function saveProject() {
+  if (!project.value || !projectForm.name.trim()) {
+    ElMessage.warning('请输入项目名称')
+    return
+  }
+  savingProject.value = true
+  try {
+    project.value = await updateProject(projectId, {
+      version: project.value.version,
+      name: projectForm.name.trim(),
+      description: projectForm.description.trim() || null,
+      deadline: projectForm.deadline || null,
+    })
+    projectDialogVisible.value = false
+    ElMessage.success('项目已更新')
+  } catch (error) {
+    if (isApiError(error) && error.code === 10007) {
+      ElMessage.warning('项目已被改动，正在加载最新数据')
+      await loadProject()
+    }
+  } finally {
+    savingProject.value = false
+  }
+}
+
+async function handleProjectAction(
+  command: 'edit' | 'archive' | 'unarchive' | 'delete',
+) {
+  if (!project.value) return
+  if (command === 'edit') {
+    openProjectEdit()
+    return
+  }
+  if (command === 'archive') {
+    try {
+      await ElMessageBox.confirm(
+        '归档后项目将变为只读，确认归档？',
+        '归档项目',
+        {
+          confirmButtonText: '归档',
+          cancelButtonText: '取消',
+          customClass: 'rounded-message-box',
+        },
+      )
+    } catch {
+      return
+    }
+    project.value = await archiveProject(projectId)
+    ElMessage.success('项目已归档')
+    return
+  }
+  if (command === 'unarchive') {
+    project.value = await unarchiveProject(projectId)
+    ElMessage.success('项目已恢复')
+    return
+  }
+  try {
+    await ElMessageBox.confirm(
+      '删除后项目仅能在历史记录中查看，确认删除？',
+      '删除项目',
+      {
+        type: 'warning',
+        confirmButtonText: '删除',
+        cancelButtonText: '取消',
+        customClass: 'rounded-message-box',
+      },
+    )
+  } catch {
+    return
+  }
+  await deleteProject(projectId)
+  ElMessage.success('项目已删除')
+  await router.push({ name: 'projects' })
+}
+
 async function saveTask() {
   const title = form.title.trim()
   if (!title) {
@@ -176,27 +282,31 @@ async function saveTask() {
   savingTask.value = true
   try {
     if (dialogMode.value === 'create') {
-      const created = await createTask(projectId, {
+      let created = await createTask(projectId, {
         title,
         description: form.description.trim() || null,
         priority: form.priority,
         deadline: form.deadline || null,
-        status: form.status,
       })
+      if (form.status !== created.status) {
+        created = await updateTaskStatus(created.id, form.status)
+      }
       tasks.value.push(created)
       ElMessage.success('任务已添加')
       dialogVisible.value = false
     } else {
       const id = form.id
       if (!id) return
-      const updated = await updateTask(id, {
+      let updated = await updateTask(id, {
         version: form.version,
         title,
         description: form.description.trim() || null,
         priority: form.priority,
         deadline: form.deadline || null,
-        status: form.status,
       })
+      if (form.status !== updated.status) {
+        updated = await updateTaskStatus(id, form.status)
+      }
       const index = tasks.value.findIndex((item) => item.id === updated.id)
       if (index >= 0) tasks.value[index] = updated
       ElMessage.success('任务已更新')
@@ -220,6 +330,7 @@ async function removeTask() {
   try {
     await ElMessageBox.confirm('确定删除该任务？删除后无法恢复。', '删除任务', {
       type: 'warning',
+      customClass: 'rounded-message-box',
       confirmButtonText: '删除',
       cancelButtonText: '取消',
     })
@@ -239,35 +350,76 @@ async function removeTask() {
   }
 }
 
-async function moveTask(task: Task, direction: 'up' | 'down') {
-  if (readonly.value || reorderingIds.value.has(task.id)) return
-  const list = columnTasks(task.status)
-  const index = list.findIndex((item) => item.id === task.id)
-  const target = direction === 'up' ? index - 1 : index + 1
-  if (target < 0 || target >= list.length) return
-  // 交换相邻位置：list 内是同一批任务对象引用，调整数组顺序后据此重排
-  ;[list[index], list[target]] = [list[target], list[index]]
-
-  // 用全局递增 sort_order 重排全量任务，保证服务端按列或全局排序都一致
+async function persistTaskOrder(
+  columnStatus: TaskStatus,
+  orderedColumn: Task[],
+) {
   let order = 0
-  const payload: ReorderTaskItem[] = []
+  const taskIds: number[] = []
   for (const col of columns) {
-    // 当前列用已交换顺序的 list，其它列按各自现有顺序展开
-    const colList = col.status === task.status ? list : columnTasks(col.status)
+    const colList =
+      col.status === columnStatus ? orderedColumn : columnTasks(col.status)
     for (const item of colList) {
       item.sort_order = order++
-      payload.push({ id: item.id, sort_order: item.sort_order })
+      taskIds.push(item.id)
     }
   }
-  reorderingIds.value.add(task.id)
+  reordering.value = true
   try {
-    await reorderTasks({ tasks: payload })
+    const reordered = await reorderTasks({
+      project_id: projectId,
+      task_ids: taskIds,
+    })
+    tasks.value = reordered.items
   } catch {
     // 服务端拒绝或网络失败：拉回服务端权威顺序
     await loadProjectTasks()
   } finally {
-    reorderingIds.value.delete(task.id)
+    reordering.value = false
   }
+}
+
+function handleDragStart(task: Task, event: DragEvent) {
+  if (readonly.value || reordering.value) return
+  draggedTaskId.value = task.id
+  suppressCardClick.value = true
+  event.dataTransfer?.setData('text/plain', String(task.id))
+  if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move'
+}
+
+function handleDragOver(task: Task, event: DragEvent) {
+  const dragged = tasks.value.find((item) => item.id === draggedTaskId.value)
+  if (!dragged || dragged.status !== task.status) return
+  event.preventDefault()
+  dragOverTaskId.value = task.id
+}
+
+async function handleDrop(targetTask: Task, event: DragEvent) {
+  event.preventDefault()
+  const dragged = tasks.value.find((item) => item.id === draggedTaskId.value)
+  if (
+    !dragged ||
+    dragged.id === targetTask.id ||
+    dragged.status !== targetTask.status
+  ) {
+    handleDragEnd()
+    return
+  }
+  const ordered = columnTasks(targetTask.status)
+  const fromIndex = ordered.findIndex((item) => item.id === dragged.id)
+  const targetIndex = ordered.findIndex((item) => item.id === targetTask.id)
+  ordered.splice(fromIndex, 1)
+  ordered.splice(targetIndex, 0, dragged)
+  handleDragEnd()
+  await persistTaskOrder(targetTask.status, ordered)
+}
+
+function handleDragEnd() {
+  draggedTaskId.value = null
+  dragOverTaskId.value = null
+  window.setTimeout(() => {
+    suppressCardClick.value = false
+  }, 0)
 }
 
 onMounted(() => {
@@ -317,6 +469,22 @@ onMounted(() => {
             </el-tag>
           </div>
           <p>{{ project.description || '管理由解析结果生成的任务清单。' }}</p>
+          <div class="project-meta">
+            <span
+              ><strong>截止日期</strong>{{ formatDate(project.deadline) }}</span
+            >
+            <span
+              ><strong>创建日期</strong
+              >{{ formatDate(project.created_at) }}</span
+            >
+            <span>
+              <strong>来源文档</strong>
+              <el-icon><Document /></el-icon>
+              {{
+                sourceDocument?.title || `文档 #${project.source_document_id}`
+              }}
+            </span>
+          </div>
         </div>
         <div class="project-progress">
           <strong>{{ progress }}%</strong>
@@ -331,6 +499,25 @@ onMounted(() => {
             @click="openCreateForColumn('todo')"
             >新增任务</el-button
           >
+          <el-dropdown trigger="click" @command="handleProjectAction">
+            <el-button :icon="MoreFilled">操作</el-button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <template v-if="project.status === 'active'">
+                  <el-dropdown-item command="edit">编辑项目</el-dropdown-item>
+                  <el-dropdown-item command="archive">归档</el-dropdown-item>
+                </template>
+                <template v-else>
+                  <el-dropdown-item command="unarchive"
+                    >取消归档</el-dropdown-item
+                  >
+                  <el-dropdown-item command="delete" divided
+                    >删除项目</el-dropdown-item
+                  >
+                </template>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
           <el-button
             circle
             :icon="Refresh"
@@ -378,39 +565,23 @@ onMounted(() => {
               v-for="task in columnTasks(column.status)"
               :key="task.id"
               class="task-card"
+              :class="{
+                'is-dragging': draggedTaskId === task.id,
+                'is-drag-over': dragOverTaskId === task.id,
+                'is-editable': !readonly,
+              }"
+              :draggable="!readonly && !reordering"
+              tabindex="0"
+              @click="handleCardClick(task)"
+              @keydown.enter="handleCardClick(task)"
+              @dragstart="handleDragStart(task, $event)"
+              @dragover="handleDragOver(task, $event)"
+              @drop="handleDrop(task, $event)"
+              @dragend="handleDragEnd"
             >
               <div class="task-card-head">
                 <h3>{{ task.title }}</h3>
-                <div v-if="!readonly" class="task-card-actions">
-                  <el-button
-                    circle
-                    size="small"
-                    :icon="ArrowUp"
-                    :disabled="
-                      reorderingIds.has(task.id) || isFirstInColumn(task)
-                    "
-                    aria-label="上移"
-                    @click="moveTask(task, 'up')"
-                  />
-                  <el-button
-                    circle
-                    size="small"
-                    :icon="ArrowDown"
-                    :disabled="
-                      reorderingIds.has(task.id) || isLastInColumn(task)
-                    "
-                    aria-label="下移"
-                    @click="moveTask(task, 'down')"
-                  />
-                  <el-button
-                    circle
-                    size="small"
-                    :icon="EditPen"
-                    :disabled="reorderingIds.has(task.id)"
-                    aria-label="编辑任务"
-                    @click="openEdit(task)"
-                  />
-                </div>
+                <span v-if="!readonly" class="drag-hint">拖拽排序</span>
               </div>
               <p v-if="task.description">{{ task.description }}</p>
               <div class="task-meta">
@@ -436,6 +607,7 @@ onMounted(() => {
                 size="small"
                 :disabled="readonly || updatingTaskIds.has(task.id)"
                 :loading="updatingTaskIds.has(task.id)"
+                @click.stop
                 @change="changeStatus(task, $event as TaskStatus)"
               >
                 <el-option
@@ -461,6 +633,7 @@ onMounted(() => {
       :title="dialogMode === 'create' ? '新增任务' : '编辑任务'"
       width="480px"
       :close-on-click-modal="false"
+      class="rounded-dialog"
     >
       <el-form :model="form" label-position="top">
         <el-form-item label="任务标题">
@@ -535,6 +708,44 @@ onMounted(() => {
         </div>
       </template>
     </el-dialog>
+
+    <el-dialog
+      v-model="projectDialogVisible"
+      title="编辑项目"
+      width="520px"
+      :close-on-click-modal="false"
+      class="rounded-dialog"
+    >
+      <el-form :model="projectForm" label-position="top">
+        <el-form-item label="项目名称">
+          <el-input v-model="projectForm.name" maxlength="255" />
+        </el-form-item>
+        <el-form-item label="项目描述">
+          <el-input
+            v-model="projectForm.description"
+            type="textarea"
+            :rows="4"
+            maxlength="5000"
+            show-word-limit
+          />
+        </el-form-item>
+        <el-form-item label="截止日期">
+          <el-date-picker
+            v-model="projectForm.deadline"
+            type="datetime"
+            value-format="YYYY-MM-DDTHH:mm:ssZ"
+            placeholder="未设置截止日期"
+            style="width: 100%"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="projectDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="savingProject" @click="saveProject">
+          保存
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -576,6 +787,24 @@ onMounted(() => {
   color: var(--color-text-soft);
   font-size: 13px;
 }
+.project-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin-top: 14px;
+}
+.project-meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--color-text-soft);
+  font-size: 12px;
+}
+.project-meta strong {
+  color: var(--color-text);
+  font-weight: 600;
+}
 .project-progress {
   display: grid;
   grid-template-columns: auto 1fr;
@@ -595,6 +824,9 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+.project-actions :deep(.el-button) {
+  border-radius: 14px;
 }
 .archive-alert {
   margin-top: 16px;
@@ -667,6 +899,28 @@ onMounted(() => {
   border-radius: 11px;
   background: var(--color-surface);
   box-shadow: 0 3px 12px rgba(22, 50, 75, 0.06);
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    opacity 0.18s ease,
+    transform 0.18s ease;
+}
+.task-card.is-editable {
+  cursor: pointer;
+}
+.task-card.is-editable:hover,
+.task-card.is-editable:focus-visible {
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-hover);
+  outline: none;
+  transform: translateY(-1px);
+}
+.task-card.is-dragging {
+  opacity: 0.45;
+}
+.task-card.is-drag-over {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px var(--color-primary-soft);
 }
 .task-card-head {
   display: flex;
@@ -682,11 +936,16 @@ onMounted(() => {
   font-size: 14px;
   line-height: 1.5;
 }
-.task-card-actions {
-  display: flex;
-  align-items: center;
-  gap: 2px;
+.drag-hint {
   flex: 0 0 auto;
+  color: var(--color-text-soft);
+  font-size: 11px;
+  opacity: 0;
+  transition: opacity 0.18s ease;
+}
+.task-card:hover .drag-hint,
+.task-card:focus-visible .drag-hint {
+  opacity: 1;
 }
 .task-card p {
   margin: 7px 0 0;
@@ -728,6 +987,9 @@ onMounted(() => {
   }
   .project-progress {
     grid-column: 2 / 4;
+  }
+  .project-meta {
+    gap: 8px 12px;
   }
 }
 @media (max-width: 600px) {
