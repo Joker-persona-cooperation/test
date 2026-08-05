@@ -129,15 +129,17 @@ onMounted(loadProjects)
       <el-empty
         v-else-if="!loading && projects.length === 0"
         :description="
-          status === 'active' ? '暂无进行中的项目' : '暂无已归档项目'
+          status === 'active'
+            ? '暂无项目，去创建一个解析任务吧'
+            : '暂无已归档项目'
         "
       >
         <el-button
           v-if="status === 'active'"
           type="primary"
-          @click="openCreateDialog"
+          @click="router.push({ name: 'parse-create' })"
         >
-          从解析结果创建项目
+          新建解析
         </el-button>
       </el-empty>
 

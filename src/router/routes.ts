@@ -82,23 +82,12 @@ export const routes: RouteRecordRaw[] = [
       {
         path: 'history',
         name: 'history',
-        component: ModulePlaceholderView,
+        component: () => import('@/views/history/HistoryView.vue'),
         meta: {
           title: '历史记录',
           description:
-            '这里将集中展示历史解析记录、历史项目与可回溯的任务数据。',
-          statusLabel: '待接入 history',
-          suggestedActions: [
-            '查看全部历史解析记录并快速回跳详情页。',
-            '区分已生成项目与未生成项目的历史结果。',
-            '提供历史项目快照与任务只读视图。',
-          ],
-          endpointGroups: [
-            'GET /api/v1/history/projects',
-            'GET /api/v1/history/projects/{projectId}',
-            'GET /api/v1/history/projects/{projectId}/tasks',
-            'GET /api/v1/history/parse-results',
-          ],
+            '集中展示历史解析记录、历史项目与可回溯的任务数据。',
+          statusLabel: '已接入 history',
         },
       },
       {

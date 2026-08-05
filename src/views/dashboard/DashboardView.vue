@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   Bell,
@@ -18,8 +18,15 @@ import {
   PARSE_STATUS_LABEL,
   PARSE_STATUS_TAG,
 } from '@/constants/parseStatus'
-import type { DashboardParseRecord } from '@/api/dashboard'
-import { mockParseRecords, mockReminders, mockStats } from '@/mocks/dashboard'
+import {
+  getDashboardReminders,
+  getDashboardStats,
+  mapParseRecordToDashboard,
+  type DashboardParseRecord,
+  type DashboardReminder,
+  type DashboardStats,
+} from '@/api/dashboard'
+import { getParseResultHistory } from '@/api/parseResult'
 
 const authStore = useAuthStore()
 const router = useRouter()
@@ -29,28 +36,33 @@ const displayName = computed(
   () => authStore.userInfo?.nickname || 'TaskPilot 用户',
 )
 
+const loading = ref(false)
+const statsData = ref<DashboardStats | null>(null)
+const reminders = ref<DashboardReminder[]>([])
+const parseRecords = ref<DashboardParseRecord[]>([])
+
 const stats = computed(() => [
   {
     label: '文档总数',
-    value: mockStats.documents,
+    value: statsData.value?.documents ?? 0,
     icon: Document,
     tone: 'primary' as const,
   },
   {
     label: '解析任务',
-    value: mockStats.parseJobs,
+    value: statsData.value?.parseJobs ?? 0,
     icon: Cpu,
     tone: 'warning' as const,
   },
   {
     label: '进行中项目',
-    value: mockStats.activeProjects,
+    value: statsData.value?.activeProjects ?? 0,
     icon: FolderOpened,
     tone: 'success' as const,
   },
   {
     label: '待办任务',
-    value: mockStats.openTasks,
+    value: statsData.value?.openTasks ?? 0,
     icon: List,
     tone: 'danger' as const,
   },
@@ -58,8 +70,26 @@ const stats = computed(() => [
 
 // 3 天内到期视为紧急，与提醒项的红色标记保持一致
 const urgentCount = computed(
-  () => mockReminders.filter((item) => item.daysLeft <= 3).length,
+  () => reminders.value.filter((item) => item.daysLeft <= 3).length,
 )
+
+async function loadDashboard() {
+  loading.value = true
+  try {
+    const [statsResult, reminderItems, history] = await Promise.all([
+      getDashboardStats(),
+      getDashboardReminders(),
+      getParseResultHistory(20),
+    ])
+    statsData.value = statsResult
+    reminders.value = reminderItems
+    parseRecords.value = history.items.map(mapParseRecordToDashboard)
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(loadDashboard)
 
 function openRecord(id: number) {
   // 解析详情页尚未落地，先落到历史列表，避免死链
@@ -71,7 +101,7 @@ function openRecord(id: number) {
   <div class="dashboard">
     <p class="dashboard__greeting">
       {{ greeting }}，{{ displayName }}。今天有
-      <strong>{{ mockReminders.length }}</strong> 个任务即将到期。
+      <strong>{{ reminders.length }}</strong> 个任务即将到期。
     </p>
 
     <section class="dashboard__stats" aria-label="数据概览">
@@ -97,7 +127,7 @@ function openRecord(id: number) {
           </el-button>
         </template>
 
-        <el-table :data="mockParseRecords" style="width: 100%">
+        <el-table v-loading="loading" :data="parseRecords" style="width: 100%">
           <template #empty>
             <p class="dashboard__empty">
               还没有解析记录，先去新建一个解析任务吧。
@@ -116,16 +146,22 @@ function openRecord(id: number) {
           </el-table-column>
           <el-table-column label="来源" width="90">
             <template #default="{ row }: { row: DashboardParseRecord }">
-              <el-tag size="small" effect="plain">
+              <el-tag v-if="row.source" size="small" effect="plain">
                 {{ DOCUMENT_SOURCE_LABEL[row.source] }}
               </el-tag>
+              <span v-else class="dashboard__empty">—</span>
             </template>
           </el-table-column>
           <el-table-column label="状态" width="100">
             <template #default="{ row }: { row: DashboardParseRecord }">
-              <el-tag size="small" :type="PARSE_STATUS_TAG[row.status]">
+              <el-tag
+                v-if="row.status"
+                size="small"
+                :type="PARSE_STATUS_TAG[row.status]"
+              >
                 {{ PARSE_STATUS_LABEL[row.status] }}
               </el-tag>
+              <span v-else class="dashboard__empty">—</span>
             </template>
           </el-table-column>
           <el-table-column
@@ -144,9 +180,9 @@ function openRecord(id: number) {
           </el-tag>
         </template>
 
-        <ul v-if="mockReminders.length" class="reminder-list">
+        <ul v-if="reminders.length" class="reminder-list">
           <li
-            v-for="item in mockReminders"
+            v-for="item in reminders"
             :key="item.id"
             class="reminder-list__item"
           >

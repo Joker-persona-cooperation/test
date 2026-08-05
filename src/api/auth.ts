@@ -25,6 +25,14 @@ export interface AuthResult {
   expires_in_sec: number
 }
 
+// 更新个人资料：nickname / avatar_url 至少提供其一。
+// 该接口强制走 access/refresh Cookie + CSRF（见 docs/api-contract.md 0.2 节），
+// client.ts 已全局带上 withCredentials 与 X-CSRF-Token 头，此处无需额外处理。
+export interface UpdateProfileParams {
+  nickname?: string
+  avatar_url?: string | null
+}
+
 export function login(params: LoginParams): Promise<AuthResult> {
   return http.post<AuthResult>('/auth/login', params)
 }
@@ -35,6 +43,14 @@ export function register(params: RegisterParams): Promise<AuthResult> {
 
 export function fetchProfile(): Promise<UserProfile> {
   return http.get<UserProfile>('/users/me')
+}
+
+// 更新个人资料，成功返回新的 AuthResult（可能携带新 access token 与新 user），
+// 调用方应使用返回结果刷新本地会话。
+export function updateProfile(
+  params: UpdateProfileParams,
+): Promise<AuthResult> {
+  return http.put<AuthResult>('/users/me', params)
 }
 
 // 这里故意不导出 refresh()：刷新必须由 client.ts 内部用原始 axios 实例发起，

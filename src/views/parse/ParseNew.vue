@@ -126,15 +126,21 @@ function fillExample() {
           </div>
         </el-form-item>
         <el-form-item>
-          <el-button
-            class="parse-submit"
-            type="primary"
-            native-type="submit"
-            :loading="submitting"
-            :disabled="!form.content"
-          >
-            {{ submitting ? '提交中...' : '提交解析' }}
-          </el-button>
+          <div class="form-actions">
+            <el-button size="large" @click="router.push('/dashboard')">
+              取消
+            </el-button>
+            <el-button
+              class="parse-submit"
+              type="primary"
+              size="large"
+              native-type="submit"
+              :loading="submitting"
+              :disabled="!form.content"
+            >
+              {{ submitting ? '提交中...' : '提交解析' }}
+            </el-button>
+          </div>
         </el-form-item>
       </el-form>
 
@@ -203,9 +209,15 @@ function fillExample() {
   color: var(--color-text-soft);
 }
 
-.parse-submit {
+.form-actions {
   width: 100%;
-  height: 46px;
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+.parse-submit {
+  min-width: 140px;
   font-size: 15px;
 }
 

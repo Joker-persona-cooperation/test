@@ -58,6 +58,14 @@ export const useAuthStore = defineStore('auth', () => {
     return user
   }
 
+  // 更新个人资料：PUT /users/me 成功返回新的 AuthResult，
+  // 用其刷新 token 与 user，避免页面手动维护两处状态。
+  async function updateProfile(params: authApi.UpdateProfileParams) {
+    const res = await authApi.updateProfile(params)
+    applySession(res)
+    return res
+  }
+
   async function bootstrapSession() {
     if (bootstrapped.value) return
     if (bootstrapPromise) return bootstrapPromise
@@ -105,6 +113,7 @@ export const useAuthStore = defineStore('auth', () => {
     login,
     register,
     fetchProfile,
+    updateProfile,
     bootstrapSession,
     clearSession,
     logout,
