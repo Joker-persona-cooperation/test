@@ -38,6 +38,8 @@ views / layouts  →  stores  →  api  →  utils / constants
 
 - `api/` 只做「请求 + 类型」。不碰 `window.location`、不写路由跳转、不直接改业务状态。唯一例外是响应拦截里的 `ElMessage.error` 与 token 读写，这是既有约定。
 - `stores/` 是会话与业务状态的唯一持有者。视图不直接调 `api/`（当前 auth 链路已遵守），新模块沿用：视图 → store action → api 函数。
+- **单页面自足数据的豁免**：仅被当前页面消费、且无需在路由切换间保持状态的数据请求，允许放进页面私有 `composables/`（`views/<domain>/composables/`）直接调 `api/`，不必硬塞进 store，避免为单一消费方支付 store 样板成本。判定标准：出现第二个消费方（其它页面 / 布局），或需要在路由跳转后继续持有数据时，提升为领域 store——提升是低成本平移，把 state 与 action 搬进 `stores/` 即可。
+- 豁免不破红线：视图组件（`.vue`）本身仍不得直接 import `api/`，组件与请求层之间必须隔一层（领域 store 或页面私有 composable）；会话相关逻辑（`auth` store + 请求层 401 无感刷新链路）是本仓库样板，不适用此豁免。
 - `views/` 只做编排与呈现：读 store、调 action、渲染。派生计算超过十几行或要被两个页面复用时，提到同模块的 `composables/`。
 - `constants/` 与 `utils/` 是叶子层，禁止 import `api/`、`stores/`、组件。`constants/parseStatus.ts` 依赖 `element-plus` 的 `TagProps` 类型属于类型级依赖，可接受。
 
