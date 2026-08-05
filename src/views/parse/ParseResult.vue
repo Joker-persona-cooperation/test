@@ -11,7 +11,6 @@ import { storeToRefs } from 'pinia'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
-  ArrowLeft,
   Box,
   Calendar,
   Check,
@@ -214,14 +213,6 @@ onMounted(() => {
     </el-result>
 
     <template v-else-if="result">
-      <el-button
-        text
-        :icon="ArrowLeft"
-        class="back-link"
-        @click="router.push({ name: 'parse-records' })"
-      >
-        解析记录 / 解析结果
-      </el-button>
       <!-- 顶部信息条 -->
       <div class="detail-toolbar">
         <div class="detail-meta">
@@ -500,10 +491,6 @@ onMounted(() => {
   max-width: 1200px;
   margin: 0 auto;
 
-  .back-link {
-    margin: -6px 0 12px;
-  }
-
   .card {
     padding: 24px;
     border: 1px solid var(--color-border);
@@ -538,8 +525,10 @@ onMounted(() => {
   .split-left {
     width: 38%;
     flex-shrink: 0;
+    // sticky 阈值贴近顶部：初始跟随页面滚动，滚到接近顶部时才固定为浮动，
+    // 避免一开始就"钉"在中间位置造成与右侧编辑区滚动节奏不一致的突兀感
     position: sticky;
-    top: 88px;
+    top: 5px;
   }
 
   .split-right {
@@ -566,8 +555,8 @@ onMounted(() => {
     background: var(--color-bg);
     border-radius: 8px;
     padding: 20px;
-    max-height: 600px;
-    overflow-y: auto;
+    // 原文全文随页面滚动，不设内部滚动条：
+    // 左侧与右侧编辑区共享同一滚动节奏，避免"模块内嵌滚动条"造成的视觉割裂
     font-size: 14px;
     line-height: 1.8;
     color: var(--color-text);

@@ -1,4 +1,4 @@
-import { Clock, FolderOpened, HomeFilled, User } from '@element-plus/icons-vue'
+import { Clock, FolderOpened, HomeFilled } from '@element-plus/icons-vue'
 import type { Component } from 'vue'
 
 export type WorkspaceNavKey =
@@ -36,13 +36,6 @@ export const workspaceNavItems: WorkspaceNavItem[] = [
     description: '查看历史解析结果与关联项目记录。',
     path: '/parses',
     icon: Clock,
-  },
-  {
-    key: 'profile',
-    label: '个人中心',
-    description: '管理个人资料与界面偏好。',
-    path: '/profile',
-    icon: User,
   },
 ]
 

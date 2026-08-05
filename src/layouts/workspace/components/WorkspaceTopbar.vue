@@ -7,6 +7,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useTheme } from '@/composables/useTheme'
 import { findWorkspaceNavItem } from '@/constants/navigation'
 import { useWorkspaceSidebar } from '../composables/useWorkspaceSidebar'
+import WorkspaceBreadcrumb from './WorkspaceBreadcrumb.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -60,6 +61,7 @@ async function handleLogout() {
       </button>
 
       <div class="workspace-topbar__heading">
+        <WorkspaceBreadcrumb />
         <div class="workspace-topbar__title-row">
           <h1>{{ title }}</h1>
         </div>
