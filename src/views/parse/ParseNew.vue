@@ -50,9 +50,15 @@ async function handleSubmit() {
   }
 }
 
-function fillExample() {
-  form.title = '移动端活动页上线项目'
-  form.content = `本项目需在 8 月 20 日前完成移动端活动页开发与上线。
+interface ExampleTemplate {
+  title: string
+  content: string
+}
+
+const exampleTemplates: ExampleTemplate[] = [
+  {
+    title: '移动端活动页上线项目',
+    content: `本项目需在 8 月 20 日前完成移动端活动页开发与上线。
 目标：实现一个面向新用户的活动落地页，提升注册转化率。
 交付物：1. 活动页 H5；2. 后台数据统计看板；3. 上线验收报告。
 要求：
@@ -66,7 +72,36 @@ function fillExample() {
 2. 前端 H5 页面开发；
 3. 后台统计接口联调；
 4. 埋点接入与自测；
-5. 提测与上线回归。`
+5. 提测与上线回归。`,
+  },
+  {
+    title: '运营后台 Q3 迭代项目',
+    content: `本项目需在 9 月 15 日前完成运营后台 Q3 功能迭代并灰度发布。
+目标：重构权限中心、新增数据看板模块，将运营日常操作效率提升 30%。
+交付物：1. 新版 RBAC 权限中心；2. 实时数据看板；3. 操作审计日志；4. 迭代发布说明。
+要求：
+1. 权限变更需支持灰度与一键回滚；
+2. 看板数据延迟不超过 1 分钟；
+3. 审计日志保留不少于 180 天；
+4. 兼容现有 12 个运营角色的配置迁移。
+风险：权限模型变更可能影响存量账号登录，需先在预发环境全量回归。
+任务：
+1. 权限模型设计与评审；
+2. 后端 RBAC 接口开发与单测；
+3. 看板数据管道搭建；
+4. 前端权限中心与看板页面；
+5. 存量角色配置迁移脚本；
+6. 预发回归与灰度发布。`,
+  },
+]
+
+const exampleIndex = ref(0)
+
+function fillExample() {
+  const tpl = exampleTemplates[exampleIndex.value % exampleTemplates.length]
+  form.title = tpl.title
+  form.content = tpl.content
+  exampleIndex.value++
 }
 </script>
 
@@ -101,7 +136,7 @@ function fillExample() {
           <div class="parse-new__content-meta">
             <span>{{ contentLength }} 字</span>
             <el-button link type="primary" @click="fillExample">
-              填充示例
+              填充示例（{{ exampleTemplates.length }} 选 1）
             </el-button>
           </div>
         </el-form-item>

@@ -44,7 +44,9 @@ const updatingTaskIds = ref(new Set<number>())
 // 排序请求进行中的任务 id，避免连点造成顺序错乱
 const reordering = ref(false)
 const draggedTaskId = ref<number | null>(null)
-const dragOverTaskId = ref<number | null>(null)
+const dragOriginStatus = ref<TaskStatus | null>(null)
+// 拖拽占位：{ status: 目标列, index: 插入位置 }，index 相对"排除被拖卡片"的其他卡片列表计算
+const dragPlaceholder = ref<{ status: TaskStatus; index: number } | null>(null)
 const suppressCardClick = ref(false)
 const highlightedTaskId = ref<number | null>(null)
 const historyMode = computed(
@@ -85,6 +87,25 @@ function columnTasks(status: TaskStatus) {
   return tasks.value
     .filter((task) => task.status === status)
     .sort((a, b) => a.sort_order - b.sort_order)
+}
+
+type ColumnEntry = { key: string; task: Task | null }
+
+// 渲染列内容：在目标列对应位置插入占位条，被拖卡片始终留在原列，不做实时搬家
+function columnEntries(status: TaskStatus): ColumnEntry[] {
+  const cards: ColumnEntry[] = columnTasks(status).map((task) => ({
+    key: `task-${task.id}`,
+    task,
+  }))
+  const placeholder = dragPlaceholder.value
+  if (
+    placeholder &&
+    placeholder.status === status &&
+    draggedTaskId.value != null
+  ) {
+    cards.splice(placeholder.index, 0, { key: 'drop-placeholder', task: null })
+  }
+  return cards
 }
 
 async function loadProjectTasks() {
@@ -411,41 +432,73 @@ function handleCardKeydown(task: Task, event: KeyboardEvent) {
 function handleDragStart(task: Task, event: DragEvent) {
   if (readonly.value || reordering.value) return
   draggedTaskId.value = task.id
+  dragOriginStatus.value = task.status
+  dragPlaceholder.value = null
   suppressCardClick.value = true
   event.dataTransfer?.setData('text/plain', String(task.id))
   if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move'
 }
 
-function handleDragOver(task: Task, event: DragEvent) {
+function handleColumnDragOver(status: TaskStatus, event: DragEvent) {
   const dragged = tasks.value.find((item) => item.id === draggedTaskId.value)
-  if (!dragged || dragged.status !== task.status) return
+  if (!dragged) return
+  // 列内任何位置（卡片、空白、列尾、空列）都允许放置：始终 preventDefault
   event.preventDefault()
-  dragOverTaskId.value = task.id
+  if (event.dataTransfer) event.dataTransfer.dropEffect = 'move'
+  // 以指针 Y 与列内各卡片（排除被拖卡片）的中点为界，计算插入索引
+  const body = event.currentTarget as HTMLElement
+  const cards = Array.from(
+    body.querySelectorAll<HTMLElement>('[data-task-id]'),
+  ).filter((el) => Number(el.dataset.taskId) !== draggedTaskId.value)
+  const pointerY = event.clientY
+  let index = cards.length
+  for (let i = 0; i < cards.length; i += 1) {
+    const rect = cards[i]!.getBoundingClientRect()
+    if (pointerY < rect.top + rect.height / 2) {
+      index = i
+      break
+    }
+  }
+  dragPlaceholder.value = { status, index }
 }
 
-async function handleDrop(targetTask: Task, event: DragEvent) {
+async function handleColumnDrop(status: TaskStatus, event: DragEvent) {
   event.preventDefault()
   const dragged = tasks.value.find((item) => item.id === draggedTaskId.value)
-  if (
-    !dragged ||
-    dragged.id === targetTask.id ||
-    dragged.status !== targetTask.status
-  ) {
+  const fromStatus = dragOriginStatus.value ?? dragged?.status
+  const placeholder = dragPlaceholder.value
+  if (!dragged || !placeholder || placeholder.status !== status) {
     handleDragEnd()
     return
   }
-  const ordered = columnTasks(targetTask.status)
-  const fromIndex = ordered.findIndex((item) => item.id === dragged.id)
-  const targetIndex = ordered.findIndex((item) => item.id === targetTask.id)
-  ordered.splice(fromIndex, 1)
-  ordered.splice(targetIndex, 0, dragged)
+  const ordered = columnTasks(status)
+  // placeholder.index 是相对"排除被拖卡片"的其他卡片列表计算的，因此移除后可直接使用
+  const originalIndex = ordered.findIndex((item) => item.id === dragged.id)
+  if (originalIndex >= 0) ordered.splice(originalIndex, 1)
+  ordered.splice(placeholder.index, 0, dragged)
+  // 同列且插入位置未变：不提交，仅结束拖拽
+  if (fromStatus === status && originalIndex === placeholder.index) {
+    handleDragEnd()
+    return
+  }
+  // 跨列：先持久化状态变更（reorder 仅处理排序），再重排
+  if (fromStatus !== status) {
+    try {
+      await projectStore.changeTaskStatus(dragged.id, status)
+    } catch {
+      await loadProjectTasks()
+      handleDragEnd()
+      return
+    }
+  }
+  await persistTaskOrder(status, ordered)
   handleDragEnd()
-  await persistTaskOrder(targetTask.status, ordered)
 }
 
 function handleDragEnd() {
   draggedTaskId.value = null
-  dragOverTaskId.value = null
+  dragOriginStatus.value = null
+  dragPlaceholder.value = null
   window.setTimeout(() => {
     suppressCardClick.value = false
   }, 0)
@@ -608,83 +661,96 @@ onMounted(() => {
             </div>
           </div>
 
-          <div class="column-body">
-            <article
-              v-for="task in columnTasks(column.status)"
-              :key="task.id"
-              class="task-card"
-              :class="{
-                'is-dragging': draggedTaskId === task.id,
-                'is-drag-over': dragOverTaskId === task.id,
-                'is-editable': !readonly,
-                'is-highlighted': highlightedTaskId === task.id,
-              }"
-              :data-task-id="task.id"
-              :draggable="!readonly && !reordering"
-              tabindex="0"
-              @click="handleCardClick(task)"
-              @keydown="handleCardKeydown(task, $event)"
-              @dragstart="handleDragStart(task, $event)"
-              @dragover="handleDragOver(task, $event)"
-              @drop="handleDrop(task, $event)"
-              @dragend="handleDragEnd"
+          <div
+            class="column-body"
+            @dragover="handleColumnDragOver(column.status, $event)"
+            @drop="handleColumnDrop(column.status, $event)"
+          >
+            <template
+              v-for="entry in columnEntries(column.status)"
+              :key="entry.key"
             >
-              <div class="task-card-head">
-                <h3>{{ task.title }}</h3>
-                <span v-if="!readonly" class="drag-hint">拖拽或按钮排序</span>
-              </div>
-              <p v-if="task.description">{{ task.description }}</p>
-              <div class="task-meta">
-                <el-tag
-                  size="small"
-                  :type="TASK_PRIORITY_TAG[task.priority]"
-                  effect="plain"
-                >
-                  {{ TASK_PRIORITY_LABEL[task.priority] }}优先级
-                </el-tag>
-                <el-tag
-                  v-if="task.source_type === 'ai'"
-                  size="small"
-                  effect="plain"
-                  >AI</el-tag
-                >
-                <span v-if="task.deadline" class="task-deadline">
-                  <el-icon><Calendar /></el-icon
-                  >{{ formatDateTime(task.deadline) }}
-                </span>
-              </div>
-              <div v-if="!readonly" class="task-reorder" @click.stop>
-                <el-button
-                  size="small"
-                  :disabled="reordering || !canMoveTask(task, -1)"
-                  @click="moveTask(task, -1)"
-                  >上移</el-button
-                >
-                <el-button
-                  size="small"
-                  :disabled="reordering || !canMoveTask(task, 1)"
-                  @click="moveTask(task, 1)"
-                  >下移</el-button
-                >
-              </div>
-              <el-select
-                :model-value="task.status"
-                size="small"
-                :disabled="readonly || updatingTaskIds.has(task.id)"
-                :loading="updatingTaskIds.has(task.id)"
-                @click.stop
-                @change="changeStatus(task, $event as TaskStatus)"
+              <article
+                v-if="entry.task"
+                class="task-card"
+                :class="{
+                  'is-dragging': draggedTaskId === entry.task.id,
+                  'is-editable': !readonly,
+                  'is-highlighted': highlightedTaskId === entry.task.id,
+                }"
+                :data-task-id="entry.task.id"
+                :draggable="!readonly && !reordering"
+                tabindex="0"
+                @click="handleCardClick(entry.task)"
+                @keydown="handleCardKeydown(entry.task, $event)"
+                @dragstart="handleDragStart(entry.task, $event)"
+                @dragend="handleDragEnd"
               >
-                <el-option
-                  v-for="option in columns"
-                  :key="option.status"
-                  :label="option.label"
-                  :value="option.status"
-                />
-              </el-select>
-            </article>
+                <div class="task-card-head">
+                  <h3>{{ entry.task.title }}</h3>
+                  <span v-if="!readonly" class="drag-hint"
+                    >拖拽可跨列排序</span
+                  >
+                </div>
+                <p v-if="entry.task.description">
+                  {{ entry.task.description }}
+                </p>
+                <div class="task-meta">
+                  <el-tag
+                    size="small"
+                    :type="TASK_PRIORITY_TAG[entry.task.priority]"
+                    effect="plain"
+                  >
+                    {{ TASK_PRIORITY_LABEL[entry.task.priority] }}优先级
+                  </el-tag>
+                  <el-tag
+                    v-if="entry.task.source_type === 'ai'"
+                    size="small"
+                    effect="plain"
+                    >AI</el-tag
+                  >
+                  <span v-if="entry.task.deadline" class="task-deadline">
+                    <el-icon><Calendar /></el-icon
+                    >{{ formatDateTime(entry.task.deadline) }}
+                  </span>
+                </div>
+                <div v-if="!readonly" class="task-reorder" @click.stop>
+                  <el-button
+                    size="small"
+                    :disabled="reordering || !canMoveTask(entry.task, -1)"
+                    @click="moveTask(entry.task, -1)"
+                    >上移</el-button
+                  >
+                  <el-button
+                    size="small"
+                    :disabled="reordering || !canMoveTask(entry.task, 1)"
+                    @click="moveTask(entry.task, 1)"
+                    >下移</el-button
+                  >
+                </div>
+                <el-select
+                  :model-value="entry.task.status"
+                  size="small"
+                  :disabled="readonly || updatingTaskIds.has(entry.task.id)"
+                  :loading="updatingTaskIds.has(entry.task.id)"
+                  @click.stop
+                  @change="changeStatus(entry.task, $event as TaskStatus)"
+                >
+                  <el-option
+                    v-for="option in columns"
+                    :key="option.status"
+                    :label="option.label"
+                    :value="option.status"
+                  />
+                </el-select>
+              </article>
+              <div v-else class="task-drop-placeholder" />
+            </template>
             <el-empty
-              v-if="columnTasks(column.status).length === 0"
+              v-if="
+                columnTasks(column.status).length === 0 &&
+                !(dragPlaceholder && dragPlaceholder.status === column.status)
+              "
               :image-size="44"
               description="暂无任务"
             />
@@ -994,6 +1060,12 @@ onMounted(() => {
     gap: 10px;
     padding: 12px;
   }
+  .task-drop-placeholder {
+    min-height: 56px;
+    border: 2px dashed var(--color-primary);
+    border-radius: 11px;
+    background: var(--color-primary-soft);
+  }
   .task-card {
     padding: 14px;
     border: 1px solid var(--color-border);
@@ -1024,11 +1096,6 @@ onMounted(() => {
 
     &.is-dragging {
       opacity: 0.45;
-    }
-
-    &.is-drag-over {
-      border-color: var(--color-primary);
-      box-shadow: 0 0 0 2px var(--color-primary-soft);
     }
 
     &.is-highlighted {

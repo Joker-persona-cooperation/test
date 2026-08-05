@@ -35,6 +35,7 @@ const { currentResult: result, sourceDocument } = storeToRefs(parseStore)
 
 const loading = ref(true)
 const saving = ref(false)
+const confirming = ref(false)
 const creatingProject = ref(false)
 const errorMsg = ref('')
 const existingProject = ref<Project | null>(null)
@@ -50,6 +51,21 @@ const primaryActionLabel = computed(() => {
   if (existingProject.value) return '查看项目'
   return result.value?.is_confirmed ? '创建项目' : '确认并创建项目'
 })
+
+async function handleConfirm() {
+  if (!result.value || result.value.is_confirmed) return
+  const params = buildUpdateParams()
+  if (!params) return
+  confirming.value = true
+  try {
+    // 先保存草稿再确认，保证进入项目的是最新编辑内容
+    await parseStore.saveResult(params)
+    await parseStore.confirmResult()
+    ElMessage.success('解析结果已确认')
+  } finally {
+    confirming.value = false
+  }
+}
 
 function addListItem(
   field: 'deliverables' | 'key_requirements' | 'risk_warnings',
@@ -469,6 +485,14 @@ onMounted(() => {
                 :icon="Check"
                 @click="saveChanges()"
                 >保存修改</el-button
+              >
+              <el-button
+                v-if="editable"
+                :loading="confirming"
+                type="success"
+                :icon="Check"
+                @click="handleConfirm"
+                >确认结果</el-button
               >
               <div class="spacer" />
               <el-button
