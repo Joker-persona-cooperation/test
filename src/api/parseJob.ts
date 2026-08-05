@@ -69,6 +69,10 @@ export function getParseJob(jobId: number): Promise<ParseJob> {
   return http.get<ParseJob>(`/parse-jobs/${jobId}`)
 }
 
+export function retryParseJob(jobId: number): Promise<ParseJob> {
+  return http.post<ParseJob>(`/parse-jobs/${jobId}/retry`)
+}
+
 // 第三步/第四步：任务成功后获取解析结果
 export function getParseJobResult(jobId: number): Promise<ParseResult> {
   return http.get<ParseResult>(`/parse-jobs/${jobId}/result`)

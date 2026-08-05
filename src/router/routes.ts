@@ -1,10 +1,6 @@
 import type { RouteRecordRaw } from 'vue-router'
 
-// 占位模块统一用同一个视图渲染，差异全部由 meta 描述，
-// 后续某个模块真正落地时只需替换这里的 component。
-const ModulePlaceholderView = () =>
-  import('@/views/system/ModulePlaceholderView.vue')
-
+// 页面标题、导航归属与顶栏动作统一由 meta 驱动。
 export const routes: RouteRecordRaw[] = [
   {
     path: '/login',
@@ -29,9 +25,8 @@ export const routes: RouteRecordRaw[] = [
         component: () => import('@/views/dashboard/DashboardView.vue'),
         meta: {
           title: '工作台',
-          description:
-            '查看最近解析、今日提醒、重点项目和当前最值得优先推进的业务动作。',
-          statusLabel: '演示数据模式',
+          description: '查看最近解析、近期提醒和当前最值得优先推进的业务动作。',
+          navKey: 'dashboard',
         },
       },
       {
@@ -59,6 +54,7 @@ export const routes: RouteRecordRaw[] = [
         meta: {
           title: '解析结果',
           description: '查看解析结果并将任务清单保存为项目。',
+          navKey: 'parse-records',
         },
       },
       {
@@ -67,7 +63,8 @@ export const routes: RouteRecordRaw[] = [
         component: () => import('@/views/projects/ProjectListView.vue'),
         meta: {
           title: '项目管理',
-          description: '浏览进行中或已归档项目，查看任务整体进度。',
+          description: '浏览进行中、已归档或已删除项目，查看任务整体进度。',
+          navKey: 'projects',
         },
       },
       {
@@ -77,34 +74,28 @@ export const routes: RouteRecordRaw[] = [
         meta: {
           title: '项目任务',
           description: '查看项目任务并更新待办、进行中和已完成状态。',
+          navKey: 'projects',
         },
       },
       {
-        path: 'history',
-        name: 'history',
+        path: 'parses',
+        alias: '/history',
+        name: 'parse-records',
         component: () => import('@/views/history/HistoryView.vue'),
         meta: {
-          title: '历史记录',
-          description:
-            '集中展示历史解析记录、历史项目与可回溯的任务数据。',
-          statusLabel: '已接入 history',
+          title: '解析记录',
+          description: '查看历史解析结果与关联项目记录。',
+          navKey: 'parse-records',
         },
       },
       {
         path: 'profile',
         name: 'profile',
-        component: ModulePlaceholderView,
+        component: () => import('@/views/profile/ProfileView.vue'),
         meta: {
           title: '个人中心',
-          description:
-            '这里将承接账号信息、个人偏好、安全设置与后续个人工作偏好配置。',
-          statusLabel: '待完善 account settings',
-          suggestedActions: [
-            '展示当前用户基础资料与邮箱信息。',
-            '后续支持修改昵称、头像与偏好设置。',
-            '补充账号安全与退出设备管理能力。',
-          ],
-          endpointGroups: ['GET /api/v1/users/me'],
+          description: '管理个人资料与界面偏好。',
+          navKey: 'profile',
         },
       },
     ],

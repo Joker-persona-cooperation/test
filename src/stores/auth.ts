@@ -11,6 +11,8 @@ import {
   removeUser,
 } from '@/utils/storage'
 
+export type UpdateProfileParams = authApi.UpdateProfileParams
+
 export const useAuthStore = defineStore('auth', () => {
   const token = ref<string>(getToken())
   const userInfo = ref<authApi.UserProfile | null>(

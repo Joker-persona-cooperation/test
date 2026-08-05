@@ -52,8 +52,14 @@ export function createProject(
   return http.post<CreateProjectResponse>('/projects', params)
 }
 
-export function getProjects(status: 'active' | 'archived' = 'active') {
-  return http.get<ProjectListResponse>('/projects', { params: { status } })
+export function getProjects(
+  status: 'active' | 'archived' = 'active',
+  page = 1,
+  pageSize = 20,
+) {
+  return http.get<ProjectListResponse>('/projects', {
+    params: { status, page, page_size: pageSize },
+  })
 }
 
 export function getProject(projectId: number) {

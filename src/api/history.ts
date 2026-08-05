@@ -12,9 +12,10 @@ import type { ParseResultHistoryResponse } from './parseResult'
 export function getHistoryProjects(
   page = 1,
   pageSize = 20,
+  status?: Project['status'],
 ): Promise<ProjectListResponse> {
   return http.get<ProjectListResponse>('/history/projects', {
-    params: { page, page_size: pageSize },
+    params: { page, page_size: pageSize, status },
   })
 }
 

@@ -1,14 +1,8 @@
-import {
-  Clock,
-  FolderOpened,
-  HomeFilled,
-  Upload,
-  User,
-} from '@element-plus/icons-vue'
+import { Clock, FolderOpened, HomeFilled, User } from '@element-plus/icons-vue'
 import type { Component } from 'vue'
 
 export type WorkspaceNavKey =
-  'dashboard' | 'parse-create' | 'projects' | 'history' | 'profile'
+  'dashboard' | 'projects' | 'parse-records' | 'profile'
 
 export interface WorkspaceNavItem {
   key: WorkspaceNavKey
@@ -30,13 +24,6 @@ export const workspaceNavItems: WorkspaceNavItem[] = [
     icon: HomeFilled,
   },
   {
-    key: 'parse-create',
-    label: '新建解析',
-    description: '上传文档或粘贴文本，发起新的解析任务。',
-    path: '/parse/new',
-    icon: Upload,
-  },
-  {
     key: 'projects',
     label: '项目管理',
     description: '浏览项目列表、查看任务进度与项目状态。',
@@ -44,31 +31,28 @@ export const workspaceNavItems: WorkspaceNavItem[] = [
     icon: FolderOpened,
   },
   {
-    key: 'history',
-    label: '历史记录',
-    description: '查看历史解析记录与历史项目快照。',
-    path: '/history',
+    key: 'parse-records',
+    label: '解析记录',
+    description: '查看历史解析结果与关联项目记录。',
+    path: '/parses',
     icon: Clock,
   },
   {
     key: 'profile',
     label: '个人中心',
-    description: '管理个人资料、偏好与账号安全设置。',
+    description: '管理个人资料与界面偏好。',
     path: '/profile',
     icon: User,
   },
 ]
 
-export function isWorkspaceNavActive(currentPath: string, itemPath: string) {
-  if (itemPath === '/dashboard') {
-    return currentPath === itemPath
-  }
-
-  return currentPath === itemPath || currentPath.startsWith(`${itemPath}/`)
+export function isWorkspaceNavActive(
+  currentNavKey: unknown,
+  itemKey: WorkspaceNavKey,
+) {
+  return currentNavKey === itemKey
 }
 
-export function findWorkspaceNavItem(currentPath: string) {
-  return workspaceNavItems.find((item) =>
-    isWorkspaceNavActive(currentPath, item.path),
-  )
+export function findWorkspaceNavItem(currentNavKey: unknown) {
+  return workspaceNavItems.find((item) => item.key === currentNavKey)
 }

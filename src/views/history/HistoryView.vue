@@ -1,56 +1,43 @@
 <script setup lang="ts">
-// 历史记录：对齐 goals/history.html 的「解析记录 / 项目记录」双 Tab 表格结构。
-// - 解析记录：查看 -> /parse/:jobId/result（解析结果页）
-// - 项目记录：查看 -> /projects/:projectId（项目详情页）
-// 两个 Tab 各自分页，数据来自 /api/v1/history/*
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, watch } from 'vue'
+import { storeToRefs } from 'pinia'
 import { useRoute, useRouter } from 'vue-router'
 import type { TagProps } from 'element-plus'
+import AppPanel from '@/components/common/AppPanel.vue'
 import {
-  getHistoryParseResults,
-  getHistoryProjectTasks,
-  getHistoryProjects,
-} from '@/api/history'
-import type { Project } from '@/api/project'
-import type { Task } from '@/api/task'
-import type { ParseResult } from '@/api/parseJob'
-import { PROJECT_STATUS_LABEL, PROJECT_STATUS_TAG } from '@/constants/project'
+  useHistoryStore,
+  type ParseResult,
+  type Project,
+} from '@/stores/history'
 import { CONFIRM_LABEL, CONFIRM_TAG } from '@/constants/parseStatus'
+import { PROJECT_STATUS_LABEL, PROJECT_STATUS_TAG } from '@/constants/project'
+import { formatDateTime } from '@/utils/date'
 
+type HistoryTab = 'parse' | 'projects'
 type TagType = TagProps['type']
 
 const route = useRoute()
 const router = useRouter()
-
-// goals 中「解析记录」在第一个 Tab；Dashboard 跳转带 record query 时也落在该 Tab
-type Tab = 'parse' | 'projects'
-const activeTab = ref<Tab>(route.query.record ? 'parse' : 'parse')
-
+const historyStore = useHistoryStore()
+const {
+  parseResults,
+  parseTotal,
+  parseLoading,
+  projects,
+  projectTotal,
+  projectLoading,
+} = storeToRefs(historyStore)
 const pageSize = 10
 
-// ---- 解析记录 ----
-const parseResults = ref<ParseResult[]>([])
-const parseLoading = ref(false)
-const parsePage = ref(1)
-const parseTotal = ref(0)
-
-// ---- 项目记录 ----
-const projects = ref<Project[]>([])
-const projectsLoading = ref(false)
-const projectPage = ref(1)
-const projectsTotal = ref(0)
-// 项目任务统计：接口不返回任务数，加载时并行拉取计算（失败降级为 0）
-const projectStats = ref<Map<number, { done: number; total: number }>>(
-  new Map(),
+const activeTab = computed<HistoryTab>(() =>
+  route.query.tab === 'projects' ? 'projects' : 'parse',
 )
+const currentPage = computed(() => {
+  const value = Number(route.query.page)
+  return Number.isInteger(value) && value > 0 ? value : 1
+})
 
-function formatDate(value: string | null) {
-  if (!value) return '未设置'
-  const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString('zh-CN')
-}
-
-function confirmLabel(confirmed: boolean): string {
+function confirmLabel(confirmed: boolean) {
   return confirmed ? CONFIRM_LABEL.true : CONFIRM_LABEL.false
 }
 
@@ -58,185 +45,219 @@ function confirmTag(confirmed: boolean): TagType {
   return confirmed ? CONFIRM_TAG.true : CONFIRM_TAG.false
 }
 
-async function loadParseResults() {
-  parseLoading.value = true
-  try {
-    const data = await getHistoryParseResults(parsePage.value, pageSize)
-    parseResults.value = data.items
-    parseTotal.value = data.total
-  } finally {
-    parseLoading.value = false
+async function loadActiveTab() {
+  if (activeTab.value === 'projects') {
+    await historyStore.loadProjects(currentPage.value, pageSize)
+    return
   }
+  await historyStore.loadParseResults(currentPage.value, pageSize)
 }
 
-async function loadProjects() {
-  projectsLoading.value = true
-  try {
-    const data = await getHistoryProjects(projectPage.value, pageSize)
-    projects.value = data.items
-    projectsTotal.value = data.total
-    // 并行拉取各项目任务，计算完成进度
-    const stats = new Map<number, { done: number; total: number }>()
-    const results = await Promise.allSettled(
-      data.items.map((item) => getHistoryProjectTasks(item.id)),
-    )
-    results.forEach((res, index) => {
-      const project = data.items[index]
-      if (res.status === 'fulfilled') {
-        const tasks = res.value.items as Task[]
-        stats.set(project.id, {
-          done: tasks.filter((t) => t.status === 'done').length,
-          total: tasks.length,
-        })
-      } else {
-        stats.set(project.id, { done: 0, total: 0 })
-      }
-    })
-    projectStats.value = stats
-  } finally {
-    projectsLoading.value = false
-  }
+function changeTab(tab: string | number) {
+  void router.push({
+    name: 'parse-records',
+    query: tab === 'projects' ? { tab: 'projects' } : undefined,
+  })
 }
 
-function projectProgress(projectId: number): number {
-  const stat = projectStats.value.get(projectId)
-  if (!stat || stat.total === 0) return 0
-  return Math.round((stat.done / stat.total) * 100)
+function changePage(page: number) {
+  void router.push({
+    name: 'parse-records',
+    query: {
+      ...(activeTab.value === 'projects' ? { tab: 'projects' } : {}),
+      ...(page > 1 ? { page: String(page) } : {}),
+    },
+  })
 }
 
-// goals 联动：解析记录「查看」-> 解析结果页
-function goParseResult(result: ParseResult) {
-  router.push({
+function openParseResult(result: ParseResult) {
+  void router.push({
     name: 'parse-result',
     params: { jobId: result.parse_job_id },
   })
 }
 
-// goals 联动：项目记录「查看」-> 项目详情页
-function goProjectDetail(project: Project) {
-  router.push({
+function openProject(project: Project) {
+  void router.push({
     name: 'project-detail',
     params: { projectId: project.id },
+    query: { mode: 'history', status: project.status },
   })
 }
 
-const hasMoreProjects = computed(() => projectsTotal.value > pageSize)
-const hasMoreParses = computed(() => parseTotal.value > pageSize)
-
-function handleTabChange(tab: string | number | boolean) {
-  if (tab === 'parse' && parseResults.value.length === 0) {
-    void loadParseResults()
-  } else if (tab === 'projects' && projects.value.length === 0) {
-    void loadProjects()
-  }
-}
-
-onMounted(() => {
-  void loadParseResults()
-})
+watch([activeTab, currentPage], loadActiveTab)
+onMounted(loadActiveTab)
 </script>
 
 <template>
   <div class="history-page">
-    <el-tabs v-model="activeTab" @tab-change="handleTabChange">
-      <!-- 解析记录 -->
+    <el-tabs :model-value="activeTab" @tab-change="changeTab">
       <el-tab-pane label="解析记录" name="parse">
-        <div v-loading="parseLoading" class="history-surface">
-          <el-table :data="parseResults" style="width: 100%">
-            <template #empty>
-              <p class="history-empty">暂无解析记录。</p>
-            </template>
-            <el-table-column prop="title" label="标题" min-width="240" />
-            <el-table-column label="确认状态" width="110">
-              <template #default="{ row }: { row: ParseResult }">
-                <el-tag size="small" :type="confirmTag(row.is_confirmed)">
-                  {{ confirmLabel(row.is_confirmed) }}
-                </el-tag>
+        <AppPanel title="解析记录">
+          <div v-loading="parseLoading">
+            <el-table
+              :data="parseResults"
+              class="history-page__table"
+              style="width: 100%"
+            >
+              <template #empty>
+                <p class="history-page__empty">暂无解析记录。</p>
               </template>
-            </el-table-column>
-            <el-table-column prop="created_at" label="解析时间" width="170" />
-            <el-table-column label="操作" width="100" fixed="right">
-              <template #default="{ row }: { row: ParseResult }">
-                <el-button
-                  text
-                  type="primary"
-                  size="small"
-                  @click="goParseResult(row)"
-                >
-                  查看
-                </el-button>
-              </template>
-            </el-table-column>
-          </el-table>
+              <el-table-column prop="title" label="标题" min-width="260" />
+              <el-table-column label="确认状态" width="120">
+                <template #default="{ row }: { row: ParseResult }">
+                  <el-tag
+                    size="small"
+                    :type="confirmTag(row.is_confirmed)"
+                    effect="plain"
+                  >
+                    {{ confirmLabel(row.is_confirmed) }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="解析时间" width="180">
+                <template #default="{ row }: { row: ParseResult }">
+                  {{ formatDateTime(row.created_at) }}
+                </template>
+              </el-table-column>
+              <el-table-column label="操作" width="100" align="right">
+                <template #default="{ row }: { row: ParseResult }">
+                  <el-button
+                    text
+                    type="primary"
+                    size="small"
+                    @click="openParseResult(row)"
+                  >
+                    查看
+                  </el-button>
+                </template>
+              </el-table-column>
+            </el-table>
 
-          <div v-if="hasMoreParses" class="history-pager">
+            <div class="history-page__mobile-list">
+              <button
+                v-for="result in parseResults"
+                :key="result.id"
+                type="button"
+                class="history-record-card"
+                @click="openParseResult(result)"
+              >
+                <strong>{{ result.title }}</strong>
+                <span>
+                  <el-tag
+                    size="small"
+                    :type="confirmTag(result.is_confirmed)"
+                    effect="plain"
+                  >
+                    {{ confirmLabel(result.is_confirmed) }}
+                  </el-tag>
+                  {{ formatDateTime(result.created_at) }}
+                </span>
+              </button>
+              <p
+                v-if="!parseLoading && !parseResults.length"
+                class="history-page__empty"
+              >
+                暂无解析记录。
+              </p>
+            </div>
+
             <el-pagination
-              v-model:current-page="parsePage"
+              v-if="parseTotal > pageSize"
+              class="history-page__pager"
+              :current-page="currentPage"
               :page-size="pageSize"
               :total="parseTotal"
               layout="prev, pager, next"
               background
-              @current-change="loadParseResults"
+              @current-change="changePage"
             />
           </div>
-        </div>
+        </AppPanel>
       </el-tab-pane>
 
-      <!-- 项目记录 -->
       <el-tab-pane label="项目记录" name="projects">
-        <div v-loading="projectsLoading" class="history-surface">
-          <el-table :data="projects" style="width: 100%">
-            <template #empty>
-              <p class="history-empty">暂无历史项目。</p>
-            </template>
-            <el-table-column prop="name" label="项目名称" min-width="200" />
-            <el-table-column label="状态" width="100">
-              <template #default="{ row }: { row: Project }">
-                <el-tag :type="PROJECT_STATUS_TAG[row.status]" effect="plain">
-                  {{ PROJECT_STATUS_LABEL[row.status] }}
-                </el-tag>
+        <AppPanel title="项目记录">
+          <div v-loading="projectLoading">
+            <el-table
+              :data="projects"
+              class="history-page__table"
+              style="width: 100%"
+            >
+              <template #empty>
+                <p class="history-page__empty">暂无项目记录。</p>
               </template>
-            </el-table-column>
-            <el-table-column label="任务进度" width="160">
-              <template #default="{ row }: { row: Project }">
-                <el-progress
-                  :percentage="projectProgress(row.id)"
-                  :stroke-width="6"
-                  :text-inside="false"
-                />
-              </template>
-            </el-table-column>
-            <el-table-column label="截止时间" width="120">
-              <template #default="{ row }: { row: Project }">
-                {{ formatDate(row.deadline) }}
-              </template>
-            </el-table-column>
-            <el-table-column prop="created_at" label="创建时间" width="170" />
-            <el-table-column label="操作" width="100" fixed="right">
-              <template #default="{ row }: { row: Project }">
-                <el-button
-                  text
-                  type="primary"
-                  size="small"
-                  @click="goProjectDetail(row)"
-                >
-                  查看
-                </el-button>
-              </template>
-            </el-table-column>
-          </el-table>
+              <el-table-column prop="name" label="项目名称" min-width="240" />
+              <el-table-column label="状态" width="110">
+                <template #default="{ row }: { row: Project }">
+                  <el-tag
+                    size="small"
+                    :type="PROJECT_STATUS_TAG[row.status]"
+                    effect="plain"
+                  >
+                    {{ PROJECT_STATUS_LABEL[row.status] }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="更新时间" width="180">
+                <template #default="{ row }: { row: Project }">
+                  {{ formatDateTime(row.updated_at) }}
+                </template>
+              </el-table-column>
+              <el-table-column label="操作" width="100" align="right">
+                <template #default="{ row }: { row: Project }">
+                  <el-button
+                    text
+                    type="primary"
+                    size="small"
+                    @click="openProject(row)"
+                  >
+                    查看
+                  </el-button>
+                </template>
+              </el-table-column>
+            </el-table>
 
-          <div v-if="hasMoreProjects" class="history-pager">
+            <div class="history-page__mobile-list">
+              <button
+                v-for="project in projects"
+                :key="project.id"
+                type="button"
+                class="history-record-card"
+                @click="openProject(project)"
+              >
+                <strong>{{ project.name }}</strong>
+                <span>
+                  <el-tag
+                    size="small"
+                    :type="PROJECT_STATUS_TAG[project.status]"
+                    effect="plain"
+                  >
+                    {{ PROJECT_STATUS_LABEL[project.status] }}
+                  </el-tag>
+                  {{ formatDateTime(project.updated_at) }}
+                </span>
+              </button>
+              <p
+                v-if="!projectLoading && !projects.length"
+                class="history-page__empty"
+              >
+                暂无项目记录。
+              </p>
+            </div>
+
             <el-pagination
-              v-model:current-page="projectPage"
+              v-if="projectTotal > pageSize"
+              class="history-page__pager"
+              :current-page="currentPage"
               :page-size="pageSize"
-              :total="projectsTotal"
+              :total="projectTotal"
               layout="prev, pager, next"
               background
-              @current-change="loadProjects"
+              @current-change="changePage"
             />
           </div>
-        </div>
+        </AppPanel>
       </el-tab-pane>
     </el-tabs>
   </div>
@@ -246,29 +267,69 @@ onMounted(() => {
 .history-page {
   max-width: 1100px;
   margin: 0 auto;
-}
 
-.history-surface {
-  min-height: 260px;
-  padding: 22px;
-  border-radius: var(--radius-card);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-card);
+  &__mobile-list {
+    display: none;
+  }
 
-  :deep(.el-table__row) {
-    cursor: pointer;
+  &__empty {
+    margin: 0;
+    padding: 8px 0;
+    color: var(--color-text-soft);
+    font-size: 13px;
+  }
+
+  &__pager {
+    justify-content: flex-end;
+    margin-top: 18px;
   }
 }
 
-.history-empty {
-  margin: 0;
-  font-size: 13px;
-  color: var(--color-text-soft);
+.history-record-card {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+
+  strong {
+    color: var(--color-text);
+    font-size: 14px;
+  }
+
+  span {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--color-text-soft);
+    font-size: 12px;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
 }
 
-.history-pager {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 18px;
+@media (max-width: 640px) {
+  .history-page {
+    &__table {
+      display: none;
+    }
+
+    &__mobile-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    &__pager {
+      justify-content: center;
+    }
+  }
 }
 </style>

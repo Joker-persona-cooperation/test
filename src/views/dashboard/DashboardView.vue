@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted } from 'vue'
+import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
 import {
   Bell,
@@ -12,34 +13,28 @@ import {
 import AppPanel from '@/components/common/AppPanel.vue'
 import AppStatCard from '@/components/common/AppStatCard.vue'
 import { useAuthStore } from '@/stores/auth'
-import { useGreeting } from '@/composables/useGreeting'
 import {
-  DOCUMENT_SOURCE_LABEL,
-  PARSE_STATUS_LABEL,
-  PARSE_STATUS_TAG,
-} from '@/constants/parseStatus'
-import {
-  getDashboardReminders,
-  getDashboardStats,
-  mapParseRecordToDashboard,
+  useDashboardStore,
   type DashboardParseRecord,
   type DashboardReminder,
-  type DashboardStats,
-} from '@/api/dashboard'
-import { getParseResultHistory } from '@/api/parseResult'
+} from '@/stores/dashboard'
+import { useGreeting } from '@/composables/useGreeting'
+import { formatDateTime } from '@/utils/date'
 
 const authStore = useAuthStore()
+const dashboardStore = useDashboardStore()
+const {
+  loading,
+  stats: statsData,
+  reminders,
+  parseRecords,
+} = storeToRefs(dashboardStore)
 const router = useRouter()
 const greeting = useGreeting()
 
 const displayName = computed(
   () => authStore.userInfo?.nickname || 'TaskPilot 用户',
 )
-
-const loading = ref(false)
-const statsData = ref<DashboardStats | null>(null)
-const reminders = ref<DashboardReminder[]>([])
-const parseRecords = ref<DashboardParseRecord[]>([])
 
 const stats = computed(() => [
   {
@@ -73,34 +68,28 @@ const urgentCount = computed(
   () => reminders.value.filter((item) => item.daysLeft <= 3).length,
 )
 
-async function loadDashboard() {
-  loading.value = true
-  try {
-    const [statsResult, reminderItems, history] = await Promise.all([
-      getDashboardStats(),
-      getDashboardReminders(),
-      getParseResultHistory(20),
-    ])
-    statsData.value = statsResult
-    reminders.value = reminderItems
-    parseRecords.value = history.items.map(mapParseRecordToDashboard)
-  } finally {
-    loading.value = false
-  }
+onMounted(dashboardStore.loadDashboard)
+
+function openRecord(record: DashboardParseRecord) {
+  router.push({
+    name: 'parse-result',
+    params: { jobId: record.parseJobId },
+  })
 }
 
-onMounted(loadDashboard)
-
-function openRecord(id: number) {
-  // 解析详情页尚未落地，先落到历史列表，避免死链
-  router.push({ name: 'history', query: { record: String(id) } })
+function openReminder(reminder: DashboardReminder) {
+  router.push({
+    name: 'project-detail',
+    params: { projectId: reminder.project_id },
+    query: { task: String(reminder.id) },
+  })
 }
 </script>
 
 <template>
   <div class="dashboard">
     <p class="dashboard__greeting">
-      {{ greeting }}，{{ displayName }}。今天有
+      {{ greeting }}，{{ displayName }}。未来 7 天有
       <strong>{{ reminders.length }}</strong> 个任务即将到期。
     </p>
 
@@ -121,13 +110,18 @@ function openRecord(id: number) {
           <el-button
             text
             type="primary"
-            @click="router.push({ name: 'history' })"
+            @click="router.push({ name: 'parse-records' })"
           >
             查看全部
           </el-button>
         </template>
 
-        <el-table v-loading="loading" :data="parseRecords" style="width: 100%">
+        <el-table
+          v-loading="loading"
+          :data="parseRecords"
+          class="dashboard__records-table"
+          style="width: 100%"
+        >
           <template #empty>
             <p class="dashboard__empty">
               还没有解析记录，先去新建一个解析任务吧。
@@ -138,30 +132,21 @@ function openRecord(id: number) {
               <button
                 class="dashboard__record-link"
                 type="button"
-                @click="openRecord(row.id)"
+                @click="openRecord(row)"
               >
                 {{ row.title }}
               </button>
             </template>
           </el-table-column>
-          <el-table-column label="来源" width="90">
-            <template #default="{ row }: { row: DashboardParseRecord }">
-              <el-tag v-if="row.source" size="small" effect="plain">
-                {{ DOCUMENT_SOURCE_LABEL[row.source] }}
-              </el-tag>
-              <span v-else class="dashboard__empty">—</span>
-            </template>
-          </el-table-column>
-          <el-table-column label="状态" width="100">
+          <el-table-column label="确认状态" width="110">
             <template #default="{ row }: { row: DashboardParseRecord }">
               <el-tag
-                v-if="row.status"
                 size="small"
-                :type="PARSE_STATUS_TAG[row.status]"
+                :type="row.confirmed ? 'success' : 'warning'"
+                effect="plain"
               >
-                {{ PARSE_STATUS_LABEL[row.status] }}
+                {{ row.confirmed ? '已确认' : '待确认' }}
               </el-tag>
-              <span v-else class="dashboard__empty">—</span>
             </template>
           </el-table-column>
           <el-table-column
@@ -171,9 +156,34 @@ function openRecord(id: number) {
             align="right"
           />
         </el-table>
+
+        <div v-loading="loading" class="dashboard__records-mobile">
+          <button
+            v-for="record in parseRecords.slice(0, 3)"
+            :key="record.resultId"
+            type="button"
+            class="record-card"
+            @click="openRecord(record)"
+          >
+            <span class="record-card__title">{{ record.title }}</span>
+            <span class="record-card__meta">
+              <el-tag
+                size="small"
+                :type="record.confirmed ? 'success' : 'warning'"
+                effect="plain"
+              >
+                {{ record.confirmed ? '已确认' : '待确认' }}
+              </el-tag>
+              {{ record.createdAt }}
+            </span>
+          </button>
+          <p v-if="!loading && !parseRecords.length" class="dashboard__empty">
+            还没有解析记录，先去新建一个解析任务吧。
+          </p>
+        </div>
       </AppPanel>
 
-      <AppPanel title="今日提醒" :icon="Bell">
+      <AppPanel title="近期提醒" :icon="Bell">
         <template #extra>
           <el-tag v-if="urgentCount" size="small" type="danger" effect="plain">
             紧急 {{ urgentCount }}
@@ -186,24 +196,26 @@ function openRecord(id: number) {
             :key="item.id"
             class="reminder-list__item"
           >
-            <span
-              class="reminder-list__bar"
-              :class="{ 'is-urgent': item.daysLeft <= 3 }"
-              aria-hidden="true"
-            />
-            <span class="reminder-list__body">
-              <span class="reminder-list__title">{{ item.title }}</span>
-              <span class="reminder-list__meta">
-                {{ item.project }} · 截止 {{ item.deadline }}
+            <button type="button" @click="openReminder(item)">
+              <span
+                class="reminder-list__bar"
+                :class="{ 'is-urgent': item.daysLeft <= 3 }"
+                aria-hidden="true"
+              />
+              <span class="reminder-list__body">
+                <span class="reminder-list__title">{{ item.title }}</span>
+                <span class="reminder-list__meta">
+                  {{ item.project }} · 截止 {{ formatDateTime(item.deadline) }}
+                </span>
               </span>
-            </span>
-            <el-tag
-              size="small"
-              effect="plain"
-              :type="item.daysLeft <= 3 ? 'danger' : 'warning'"
-            >
-              {{ item.daysLeft }} 天
-            </el-tag>
+              <el-tag
+                size="small"
+                effect="plain"
+                :type="item.daysLeft <= 3 ? 'danger' : 'warning'"
+              >
+                {{ item.daysLeft }} 天
+              </el-tag>
+            </button>
           </li>
         </ul>
         <p v-else class="dashboard__empty">暂无临近截止的任务。</p>
@@ -262,6 +274,10 @@ function openRecord(id: number) {
     }
   }
 
+  &__records-mobile {
+    display: none;
+  }
+
   &__empty {
     margin: 0;
     padding: 8px 0;
@@ -276,9 +292,6 @@ function openRecord(id: number) {
   list-style: none;
 
   &__item {
-    display: flex;
-    align-items: center;
-    gap: 12px;
     padding: 12px 0;
     border-bottom: 1px solid var(--color-border);
 
@@ -289,6 +302,25 @@ function openRecord(id: number) {
     &:last-child {
       padding-bottom: 0;
       border-bottom: 0;
+    }
+
+    > button {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: inherit;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    > button:focus-visible {
+      outline: 2px solid var(--color-primary);
+      outline-offset: 4px;
+      border-radius: 6px;
     }
   }
 
@@ -338,8 +370,47 @@ function openRecord(id: number) {
 }
 
 @media (max-width: 640px) {
-  .dashboard__stats {
-    grid-template-columns: 1fr;
+  .dashboard {
+    &__stats {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    &__records-table {
+      display: none;
+    }
+
+    &__records-mobile {
+      display: grid;
+      gap: 10px;
+    }
+  }
+}
+
+.record-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+
+  &__title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--color-text);
+  }
+
+  &__meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--color-text-soft);
   }
 }
 </style>

@@ -6,7 +6,7 @@
 
 import { http } from './client'
 import type { ParseResult } from './parseJob'
-import type { DocumentSource, ParseJobStatus } from '@/constants/parseStatus'
+import { formatDateTime } from '@/utils/date'
 
 // ---------- 后端 DTO（snake_case，与 /api/v1/dashboard/* 响应一一对应） ----------
 
@@ -55,10 +55,10 @@ export interface DashboardReminder {
 
 /** 「最近解析记录」列表项 */
 export interface DashboardParseRecord {
-  id: number
+  resultId: number
+  parseJobId: number
   title: string
-  source?: DocumentSource
-  status?: ParseJobStatus
+  confirmed: boolean
   createdAt: string
 }
 
@@ -86,16 +86,15 @@ export function mapDashboardReminder(
   }
 }
 
-// 「最近解析记录」复用 /history/parse-results 的分页解析结果。
-// ParseResult 契约中不携带文档来源与解析任务状态，故 source / status 置为 undefined，
-// 表格中对应列以占位符展示。
 export function mapParseRecordToDashboard(
   dto: ParseResult,
 ): DashboardParseRecord {
   return {
-    id: dto.id,
+    resultId: dto.id,
+    parseJobId: dto.parse_job_id,
     title: dto.title,
-    createdAt: dto.created_at.replace('T', ' ').slice(0, 16),
+    confirmed: dto.is_confirmed,
+    createdAt: formatDateTime(dto.created_at),
   }
 }
 

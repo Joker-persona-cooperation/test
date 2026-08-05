@@ -7,14 +7,15 @@
 //   - 确认结果：POST /parse-results/:id/confirm
 //   - 保存为项目：POST /projects
 import { computed, onMounted, ref } from 'vue'
+import { storeToRefs } from 'pinia'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox, type TagProps } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import {
+  ArrowLeft,
   Box,
   Calendar,
   Check,
   Checked,
-  CircleCheck,
   Delete,
   Document,
   EditPen,
@@ -23,46 +24,33 @@ import {
   Plus,
   WarnTriangleFilled,
 } from '@element-plus/icons-vue'
-import {
-  getParseJobResult,
-  type ParseResult,
-  type ParseTask,
-} from '@/api/parseJob'
-import {
-  confirmParseResult,
-  updateParseResult,
-  type UpdateParseResultParams,
-} from '@/api/parseResult'
-import { createProject } from '@/api/project'
-import { getDocument } from '@/api/document'
+import { useParseStore, type UpdateParseResultParams } from '@/stores/parse'
+import { useProjectStore, type Project } from '@/stores/project'
 
 const route = useRoute()
 const router = useRouter()
 const jobId = Number(route.params.jobId)
+const parseStore = useParseStore()
+const projectStore = useProjectStore()
+const { currentResult: result, sourceDocument } = storeToRefs(parseStore)
 
-const result = ref<ParseResult | null>(null)
 const loading = ref(true)
 const saving = ref(false)
-const confirming = ref(false)
 const creatingProject = ref(false)
 const errorMsg = ref('')
+const existingProject = ref<Project | null>(null)
 
 // ---- 原文预览 ----
-const originalText = ref('')
-const docLoading = ref(false)
+const originalText = computed(() => sourceDocument.value?.content || '')
 
 const editable = computed(() =>
   Boolean(result.value && !result.value.is_confirmed),
 )
 
-function priorityTag(priority?: ParseTask['priority']): {
-  type: TagProps['type']
-  text: string
-} {
-  if (priority === 'high') return { type: 'danger', text: '高' }
-  if (priority === 'low') return { type: 'info', text: '低' }
-  return { type: 'warning', text: '中' }
-}
+const primaryActionLabel = computed(() => {
+  if (existingProject.value) return '查看项目'
+  return result.value?.is_confirmed ? '创建项目' : '确认并创建项目'
+})
 
 function addListItem(
   field: 'deliverables' | 'key_requirements' | 'risk_warnings',
@@ -118,26 +106,14 @@ function buildUpdateParams(): UpdateParseResultParams | null {
   }
 }
 
-async function loadOriginalText() {
-  if (!result.value) return
-  docLoading.value = true
-  try {
-    const doc = await getDocument(result.value.document_id)
-    originalText.value = doc.content || ''
-  } catch {
-    // 原文拉取失败不阻塞主流程，展示占位提示
-    originalText.value = ''
-  } finally {
-    docLoading.value = false
-  }
-}
-
 async function loadResult() {
   loading.value = true
   errorMsg.value = ''
   try {
-    result.value = await getParseJobResult(jobId)
-    await loadOriginalText()
+    const loadedResult = await parseStore.loadResult(jobId)
+    existingProject.value = await projectStore
+      .findProjectByParseResultId(loadedResult.id)
+      .catch(() => null)
   } catch (error) {
     errorMsg.value = error instanceof Error ? error.message : '获取解析结果失败'
   } finally {
@@ -152,7 +128,7 @@ async function saveChanges(showSuccess = true) {
 
   saving.value = true
   try {
-    result.value = await updateParseResult(result.value.id, params)
+    await parseStore.saveResult(params)
     if (showSuccess) ElMessage.success('解析结果已保存')
     return result.value
   } catch {
@@ -162,21 +138,19 @@ async function saveChanges(showSuccess = true) {
   }
 }
 
-async function handleConfirm() {
-  if (!result.value || result.value.is_confirmed) return
-  confirming.value = true
-  try {
-    const saved = await saveChanges(false)
-    if (!saved) return
-    result.value = await confirmParseResult(saved.id)
-    ElMessage.success('解析结果已确认')
-  } finally {
-    confirming.value = false
-  }
-}
-
 async function handleSaveAsProject() {
   if (!result.value) return
+  if (existingProject.value) {
+    await router.push({
+      name: 'project-detail',
+      params: { projectId: existingProject.value.id },
+      query:
+        existingProject.value.status === 'deleted'
+          ? { mode: 'history', status: 'deleted' }
+          : undefined,
+    })
+    return
+  }
   try {
     await ElMessageBox.confirm(
       '确认将此解析结果保存为新项目？系统将根据任务建议清单自动生成项目任务。',
@@ -196,13 +170,11 @@ async function handleSaveAsProject() {
     if (!result.value.is_confirmed) {
       const saved = await saveChanges(false)
       if (!saved) return
-      result.value = await confirmParseResult(saved.id)
+      await parseStore.confirmResult()
     }
 
-    const created = await createProject({
-      parse_result_id: result.value.id,
-      name: result.value.title,
-    })
+    const created = await projectStore.createFromResult(result.value)
+    existingProject.value = created.project
     ElMessage.success(`项目「${created.project.name}」已就绪`)
     await router.push({
       name: 'project-detail',
@@ -234,14 +206,22 @@ onMounted(() => {
       :sub-title="errorMsg"
     >
       <template #extra>
-        <el-button @click="router.push({ name: 'parse-create' })"
-          >重新录入</el-button
+        <el-button @click="router.push({ name: 'parse-records' })"
+          >返回解析记录</el-button
         >
         <el-button type="primary" @click="loadResult">重新加载</el-button>
       </template>
     </el-result>
 
     <template v-else-if="result">
+      <el-button
+        text
+        :icon="ArrowLeft"
+        class="back-link"
+        @click="router.push({ name: 'parse-records' })"
+      >
+        解析记录 / 解析结果
+      </el-button>
       <!-- 顶部信息条 -->
       <div class="detail-toolbar">
         <div class="detail-meta">
@@ -266,7 +246,7 @@ onMounted(() => {
             <div class="section-title">
               <el-icon><Document /></el-icon> 原文预览
             </div>
-            <div v-loading="docLoading" class="original-text">
+            <div class="original-text">
               {{ originalText || '暂无可预览的原文内容。' }}
             </div>
           </div>
@@ -330,7 +310,7 @@ onMounted(() => {
                 >
               </div>
               <div
-                v-for="(item, index) in result.deliverables"
+                v-for="(_, index) in result.deliverables"
                 :key="index"
                 class="list-item-edit"
               >
@@ -371,7 +351,7 @@ onMounted(() => {
                 >
               </div>
               <div
-                v-for="(item, index) in result.key_requirements"
+                v-for="(_, index) in result.key_requirements"
                 :key="index"
                 class="list-item-edit"
               >
@@ -412,7 +392,7 @@ onMounted(() => {
                 >
               </div>
               <div
-                v-for="(item, index) in result.risk_warnings"
+                v-for="(_, index) in result.risk_warnings"
                 :key="index"
                 class="list-item-edit"
               >
@@ -485,11 +465,7 @@ onMounted(() => {
                 :image-size="48"
                 description="暂无任务建议"
               />
-              <el-alert
-                type="info"
-                :closable="false"
-                class="snapshot-alert"
-              >
+              <el-alert type="info" :closable="false" class="snapshot-alert">
                 此处编辑的是解析结果快照。保存为项目后，任务将展开为独立项目任务，后续在项目页编辑不再回写此处。
               </el-alert>
             </div>
@@ -503,22 +479,13 @@ onMounted(() => {
                 @click="saveChanges()"
                 >保存修改</el-button
               >
-              <el-button
-                v-if="editable"
-                type="primary"
-                :plain="result.is_confirmed"
-                :loading="confirming"
-                :icon="CircleCheck"
-                @click="handleConfirm"
-                >{{ result.is_confirmed ? '已确认' : '确认结果' }}</el-button
-              >
               <div class="spacer" />
               <el-button
                 type="primary"
                 :icon="FolderAdd"
                 :loading="creatingProject"
                 @click="handleSaveAsProject"
-                >保存为项目</el-button
+                >{{ primaryActionLabel }}</el-button
               >
             </div>
           </div>
@@ -532,164 +499,212 @@ onMounted(() => {
 .parse-result {
   max-width: 1200px;
   margin: 0 auto;
-}
 
-.card {
-  padding: 24px;
-  border-radius: var(--radius-card);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-card);
-}
-
-/* 顶部信息条 */
-.detail-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 20px;
-}
-
-.detail-meta {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  color: var(--color-text-soft);
-  font-size: 13px;
-}
-
-/* 左右分栏 */
-.split-layout {
-  display: flex;
-  gap: 20px;
-  align-items: flex-start;
-}
-
-.split-left {
-  width: 38%;
-  flex-shrink: 0;
-  position: sticky;
-  top: 88px;
-}
-
-.split-right {
-  flex: 1;
-  min-width: 0;
-}
-
-/* 原文预览 */
-.preview-card {
-  padding: 20px;
-}
-
-.section-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 14px;
-  font-weight: 600;
-  margin-bottom: 12px;
-  color: var(--color-text);
-}
-
-.original-text {
-  background: var(--color-bg);
-  border-radius: 8px;
-  padding: 20px;
-  max-height: 600px;
-  overflow-y: auto;
-  font-size: 14px;
-  line-height: 1.8;
-  color: var(--color-text);
-  white-space: pre-wrap;
-}
-
-/* 编辑区 */
-.edit-card {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  padding: 24px;
-}
-
-.edit-section {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.edit-section-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--color-text);
-}
-
-.flex-between {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.list-item-edit {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-
-  :deep(.el-input) {
-    flex: 1;
+  .back-link {
+    margin: -6px 0 12px;
   }
-}
 
-.task-item-edit {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
-  background: var(--color-bg);
-  border-radius: 8px;
-
-  :deep(.el-input) {
-    flex: 1;
+  .card {
+    padding: 24px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-card);
+    background: var(--color-surface);
+    box-shadow: var(--shadow-card);
   }
-}
 
-.snapshot-alert {
-  margin-top: 8px;
-}
+  /* 顶部信息条 */
+  .detail-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+  }
 
-/* 底部操作条 */
-.detail-actions {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding-top: 16px;
-  border-top: 1px solid var(--color-border);
-}
+  .detail-meta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: var(--color-text-soft);
+    font-size: 13px;
+  }
 
-.spacer {
-  flex: 1;
-}
-
-/* 响应式：窄屏降为单列，sticky 失效 */
-@media (max-width: 900px) {
+  /* 左右分栏 */
   .split-layout {
-    flex-direction: column;
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
   }
 
   .split-left {
-    width: 100%;
-    position: static;
+    width: 38%;
+    flex-shrink: 0;
+    position: sticky;
+    top: 88px;
   }
 
-  .detail-toolbar {
-    flex-wrap: wrap;
+  .split-right {
+    flex: 1;
+    min-width: 0;
+  }
+
+  /* 原文预览 */
+  .preview-card {
+    padding: 20px;
+  }
+
+  .section-title {
+    display: flex;
+    align-items: center;
     gap: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 12px;
+    color: var(--color-text);
   }
 
+  .original-text {
+    background: var(--color-bg);
+    border-radius: 8px;
+    padding: 20px;
+    max-height: 600px;
+    overflow-y: auto;
+    font-size: 14px;
+    line-height: 1.8;
+    color: var(--color-text);
+    white-space: pre-wrap;
+  }
+
+  /* 编辑区 */
+  .edit-card {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    padding: 24px;
+  }
+
+  .edit-section {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .edit-section-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--color-text);
+  }
+
+  .flex-between {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .list-item-edit {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    :deep(.el-input) {
+      flex: 1;
+    }
+  }
+
+  .task-item-edit {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    background: var(--color-bg);
+    border-radius: 8px;
+
+    :deep(.el-input) {
+      flex: 1;
+    }
+  }
+
+  .snapshot-alert {
+    margin-top: 8px;
+  }
+
+  /* 底部操作条 */
   .detail-actions {
-    flex-wrap: wrap;
+    position: sticky;
+    bottom: 12px;
+    z-index: 4;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding-top: 16px;
+    border-top: 1px solid var(--color-border);
+    background: var(--color-surface);
+  }
+
+  .spacer {
+    flex: 1;
+  }
+
+  /* 响应式：窄屏降为单列，sticky 失效 */
+  @media (max-width: 900px) {
+    padding-bottom: 76px;
+
+    .split-layout {
+      flex-direction: column;
+    }
+
+    .split-left {
+      width: 100%;
+      position: static;
+    }
+
+    .detail-toolbar {
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .detail-actions {
+      position: fixed;
+      right: 0;
+      bottom: 0;
+      left: 0;
+      z-index: 20;
+      padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+      border-top: 1px solid var(--color-border);
+    }
+
+    .detail-actions .spacer {
+      display: none;
+    }
+
+    .detail-actions :deep(.el-button) {
+      flex: 1;
+      margin: 0;
+    }
+  }
+
+  @media (max-width: 560px) {
+    .card,
+    .edit-card {
+      padding: 16px;
+    }
+
+    .detail-meta {
+      align-items: flex-start;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .task-item-edit {
+      align-items: stretch;
+      flex-wrap: wrap;
+    }
+
+    .task-item-edit :deep(.el-select) {
+      flex: 1;
+    }
   }
 }
 </style>

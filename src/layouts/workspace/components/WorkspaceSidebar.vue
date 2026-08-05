@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Fold, Expand } from '@element-plus/icons-vue'
+import { Fold, Expand, Plus } from '@element-plus/icons-vue'
 import { useRoute } from 'vue-router'
 import { APP_NAME, APP_TAGLINE } from '@/constants/app'
 import { workspaceNavItems, isWorkspaceNavActive } from '@/constants/navigation'
@@ -38,14 +38,25 @@ function handleNavClick() {
 
     <nav class="workspace-sidebar__nav" aria-label="工作台主导航">
       <router-link
+        class="workspace-sidebar__create"
+        to="/parse/new"
+        @click="handleNavClick"
+      >
+        <el-icon :size="18"><Plus /></el-icon>
+        <span class="workspace-sidebar__create-label">新建解析</span>
+      </router-link>
+
+      <router-link
         v-for="item in workspaceNavItems"
         :key="item.key"
         class="workspace-sidebar__item"
-        :class="{ 'is-active': isWorkspaceNavActive(route.path, item.path) }"
+        :class="{
+          'is-active': isWorkspaceNavActive(route.meta.navKey, item.key),
+        }"
         :to="item.path"
         :title="!isDrawer && collapsed ? item.label : undefined"
         :aria-current="
-          isWorkspaceNavActive(route.path, item.path) ? 'page' : undefined
+          isWorkspaceNavActive(route.meta.navKey, item.key) ? 'page' : undefined
         "
         @click="handleNavClick"
       >
@@ -190,6 +201,53 @@ function handleNavClick() {
     padding: 12px 0;
   }
 
+  &__create {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    padding: 10px 12px;
+    border-radius: var(--radius-control);
+    background: var(--color-primary);
+    color: var(--color-surface);
+    font-size: 14px;
+    font-weight: 600;
+    white-space: nowrap;
+    transition:
+      background-color 0.18s ease,
+      padding 0.24s ease,
+      gap 0.24s ease;
+
+    &:hover {
+      background: var(--color-primary-deep);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--color-primary-deep);
+      outline-offset: 2px;
+    }
+  }
+
+  &__create-label {
+    overflow: hidden;
+    transition:
+      opacity 0.2s ease,
+      max-width 0.24s ease;
+  }
+
+  &.is-collapsed &__create {
+    gap: 0;
+    margin: 0 10px 8px;
+    padding: 10px 0;
+  }
+
+  &.is-collapsed &__create-label {
+    position: absolute;
+    opacity: 0;
+    max-width: 0;
+  }
+
   &__item {
     display: flex;
     align-items: center;
@@ -319,6 +377,8 @@ function handleNavClick() {
 
 @media (prefers-reduced-motion: reduce) {
   .workspace-sidebar,
+  .workspace-sidebar__create,
+  .workspace-sidebar__create-label,
   .workspace-sidebar__item,
   .workspace-sidebar__collapse,
   .workspace-sidebar__brand-text,

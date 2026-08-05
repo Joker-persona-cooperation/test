@@ -2,15 +2,8 @@
 import { computed, nextTick, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import {
-  Edit,
-  Key,
-  Monitor,
-  Setting,
-  SwitchButton,
-} from '@element-plus/icons-vue'
-import { useAuthStore } from '@/stores/auth'
-import type { UpdateProfileParams } from '@/api/auth'
+import { Edit, Setting, SwitchButton } from '@element-plus/icons-vue'
+import { useAuthStore, type UpdateProfileParams } from '@/stores/auth'
 
 const authStore = useAuthStore()
 const router = useRouter()
@@ -47,7 +40,13 @@ async function startEdit() {
   editing.value = true
   // 编辑表单在右侧内容栏，从左侧身份卡片触发时滚动到表单处
   await nextTick()
-  editCardEl.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  const reduceMotion = window.matchMedia(
+    '(prefers-reduced-motion: reduce)',
+  ).matches
+  editCardEl.value?.scrollIntoView({
+    behavior: reduceMotion ? 'auto' : 'smooth',
+    block: 'start',
+  })
 }
 
 function cancelEdit() {
@@ -172,20 +171,14 @@ onMounted(() => {
             </el-form>
             <div class="profile-actions">
               <el-button :disabled="saving" @click="cancelEdit">取消</el-button>
-              <el-button
-                type="primary"
-                :loading="saving"
-                @click="saveProfile"
-              >
+              <el-button type="primary" :loading="saving" @click="saveProfile">
                 保存修改
               </el-button>
             </div>
           </template>
 
           <template v-else>
-            <p class="profile-card__desc">
-              修改昵称与头像，更新后立即生效。
-            </p>
+            <p class="profile-card__desc">修改昵称与头像，更新后立即生效。</p>
             <div class="profile-actions">
               <el-button type="primary" :icon="Edit" @click="startEdit">
                 修改昵称 / 头像
@@ -195,34 +188,8 @@ onMounted(() => {
         </section>
 
         <section class="profile-card">
-          <h2 class="profile-card__title">
-            <el-icon><Key /></el-icon>
-            账号安全
-          </h2>
-
-          <ul class="profile-security">
-            <li>
-              <span class="profile-security__icon"
-                ><el-icon><Key /></el-icon
-              ></span>
-              <span class="profile-security__body">
-                <strong>修改密码</strong>
-                <span>通过邮箱验证后重置登录密码</span>
-              </span>
-              <el-tag size="small" type="info" effect="plain">即将上线</el-tag>
-            </li>
-            <li>
-              <span class="profile-security__icon"
-                ><el-icon><Monitor /></el-icon
-              ></span>
-              <span class="profile-security__body">
-                <strong>退出其他设备</strong>
-                <span>管理已登录的浏览器与设备会话</span>
-              </span>
-              <el-tag size="small" type="info" effect="plain">即将上线</el-tag>
-            </li>
-          </ul>
-
+          <h2 class="profile-card__title">账号操作</h2>
+          <p class="profile-card__desc">退出当前账号后，将返回登录页面。</p>
           <div class="profile-actions">
             <el-button
               type="danger"
@@ -245,186 +212,139 @@ onMounted(() => {
   max-width: 1080px;
   margin: 0 auto;
   min-height: 60vh;
-}
 
-.profile-layout {
-  display: grid;
-  grid-template-columns: 320px minmax(0, 1fr);
-  gap: 16px;
-  align-items: start;
-}
-
-.profile-side {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  position: sticky;
-  top: 16px;
-}
-
-.profile-content {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.profile-card {
-  padding: 22px;
-  border-radius: var(--radius-card);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-card);
-
-  &--identity {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    text-align: center;
-  }
-
-  &__avatar {
-    flex-shrink: 0;
-    font-size: 32px;
-    font-weight: 600;
-    background: var(--color-primary-soft);
-    color: var(--color-primary-deep);
-  }
-
-  &__identity {
-    margin-top: 14px;
-  }
-
-  &__name {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
-
-    strong {
-      font-size: 19px;
-      color: var(--color-text);
-    }
-  }
-
-  &__email {
-    margin: 8px 0 0;
-    font-size: 13px;
-    color: var(--color-text-soft);
-    overflow-wrap: anywhere;
-  }
-
-  &__edit {
-    width: 100%;
-    margin-top: 18px;
-  }
-
-  &__title {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin: 0 0 18px;
-    font-size: 16px;
-    font-weight: 600;
-    color: var(--color-text);
-  }
-
-  &__desc {
-    margin: 0 0 16px;
-    font-size: 13px;
-    line-height: 1.7;
-    color: var(--color-text-soft);
-  }
-
-  &.is-editing {
-    border-color: var(--color-primary);
-  }
-}
-
-.profile-fields {
-  width: 100%;
-  margin: 18px 0 0;
-  border-top: 1px solid var(--color-border);
-  padding-top: 4px;
-
-  &__row {
-    display: flex;
-    justify-content: space-between;
-    gap: 16px;
-    padding: 9px 0;
-    font-size: 14px;
-
-    dt {
-      color: var(--color-text-soft);
-    }
-
-    dd {
-      margin: 0;
-      color: var(--color-text);
-    }
-  }
-}
-
-.profile-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  margin-top: 16px;
-}
-
-.profile-security {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-
-  li {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 12px;
-    border: 1px solid var(--color-border);
-    border-radius: 12px;
-  }
-
-  &__icon {
-    width: 36px;
-    height: 36px;
-    display: grid;
-    place-items: center;
-    flex-shrink: 0;
-    border-radius: 10px;
-    background: var(--color-primary-soft);
-    color: var(--color-primary-deep);
-    font-size: 18px;
-  }
-
-  &__body {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-
-    strong {
-      font-size: 14px;
-      color: var(--color-text);
-    }
-
-    span {
-      font-size: 12px;
-      color: var(--color-text-soft);
-    }
-  }
-}
-
-@media (max-width: 900px) {
   .profile-layout {
-    grid-template-columns: 1fr;
+    display: grid;
+    grid-template-columns: 320px minmax(0, 1fr);
+    gap: 16px;
+    align-items: start;
   }
 
   .profile-side {
-    position: static;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    position: sticky;
+    top: 16px;
+  }
+
+  .profile-content {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .profile-card {
+    padding: 22px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-card);
+    background: var(--color-surface);
+    box-shadow: var(--shadow-card);
+
+    &--identity {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+    }
+
+    &__avatar {
+      flex-shrink: 0;
+      font-size: 32px;
+      font-weight: 600;
+      background: var(--color-primary-soft);
+      color: var(--color-primary-deep);
+    }
+
+    &__identity {
+      margin-top: 14px;
+    }
+
+    &__name {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+
+      strong {
+        font-size: 19px;
+        color: var(--color-text);
+      }
+    }
+
+    &__email {
+      margin: 8px 0 0;
+      font-size: 13px;
+      color: var(--color-text-soft);
+      overflow-wrap: anywhere;
+    }
+
+    &__edit {
+      width: 100%;
+      margin-top: 18px;
+    }
+
+    &__title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 0 0 18px;
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--color-text);
+    }
+
+    &__desc {
+      margin: 0 0 16px;
+      font-size: 13px;
+      line-height: 1.7;
+      color: var(--color-text-soft);
+    }
+
+    &.is-editing {
+      border-color: var(--color-primary);
+    }
+  }
+
+  .profile-fields {
+    width: 100%;
+    margin: 18px 0 0;
+    border-top: 1px solid var(--color-border);
+    padding-top: 4px;
+
+    &__row {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 9px 0;
+      font-size: 14px;
+
+      dt {
+        color: var(--color-text-soft);
+      }
+
+      dd {
+        margin: 0;
+        color: var(--color-text);
+      }
+    }
+  }
+
+  .profile-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 16px;
+  }
+
+  @media (max-width: 900px) {
+    .profile-layout {
+      grid-template-columns: 1fr;
+    }
+
+    .profile-side {
+      position: static;
+    }
   }
 }
 </style>

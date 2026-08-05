@@ -14,7 +14,7 @@ const authStore = useAuthStore()
 const { openMobileNav } = useWorkspaceSidebar()
 const { isDark, themeToggleLabel, toggleTheme } = useTheme()
 
-const currentItem = computed(() => findWorkspaceNavItem(route.path))
+const currentItem = computed(() => findWorkspaceNavItem(route.meta.navKey))
 
 const title = computed(
   () => route.meta.title ?? currentItem.value?.label ?? '工作台',
@@ -22,8 +22,6 @@ const title = computed(
 const description = computed(
   () => route.meta.description ?? currentItem.value?.description ?? '',
 )
-const statusLabel = computed(() => route.meta.statusLabel)
-
 const showCreateAction = computed(() => route.name === 'dashboard')
 
 const displayName = computed(
@@ -64,9 +62,6 @@ async function handleLogout() {
       <div class="workspace-topbar__heading">
         <div class="workspace-topbar__title-row">
           <h1>{{ title }}</h1>
-          <el-tag v-if="statusLabel" size="small" effect="plain" type="info">
-            {{ statusLabel }}
-          </el-tag>
         </div>
         <p v-if="description">{{ description }}</p>
       </div>
@@ -80,7 +75,7 @@ async function handleLogout() {
         :icon="Plus"
         @click="router.push({ name: 'parse-create' })"
       >
-        新建解析
+        <span class="workspace-topbar__create-text">新建解析</span>
       </el-button>
 
       <button
@@ -103,7 +98,12 @@ async function handleLogout() {
         </el-icon>
       </button>
       <el-dropdown trigger="click">
-        <button class="workspace-topbar__user" type="button">
+        <button
+          class="workspace-topbar__user"
+          type="button"
+          :aria-label="`账号菜单：${displayName}`"
+          aria-haspopup="menu"
+        >
           <span class="workspace-topbar__avatar" aria-hidden="true">
             {{ avatarText }}
           </span>
@@ -168,10 +168,14 @@ async function handleLogout() {
     min-width: 0;
 
     h1 {
+      min-width: 0;
       margin: 0;
       font-size: 19px;
       font-weight: 700;
       color: var(--color-text);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     p {
@@ -187,6 +191,7 @@ async function handleLogout() {
   }
 
   &__title-row {
+    min-width: 0;
     display: flex;
     align-items: center;
     gap: 10px;
@@ -354,6 +359,38 @@ async function handleLogout() {
     &__heading p,
     &__user-name {
       display: none;
+    }
+  }
+}
+
+@media (max-width: 640px) {
+  .workspace-topbar {
+    gap: 8px;
+
+    &__main,
+    &__heading,
+    &__title-row {
+      min-width: 0;
+    }
+
+    &__actions {
+      gap: 8px;
+    }
+
+    &__create {
+      width: 38px;
+      height: 38px;
+      padding: 0;
+      border-radius: 50%;
+    }
+
+    &__create-text,
+    &__user > .el-icon {
+      display: none;
+    }
+
+    &__user {
+      padding-right: 5px;
     }
   }
 }
