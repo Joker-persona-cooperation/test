@@ -10,7 +10,7 @@ TaskPilot Web 是「任务型文档 AI 拆解助手」的前端仓库，配套�
 登录 → 文档录入 → 创建解析任务 → 轮询解析状态 → 查看/编辑解析结果 → 保存为项目 → 管理任务
 ```
 
-当前账号体系与核心主链路已经落地：文本录入、异步解析、结果编辑与确认、保存为项目、查看项目任务、更新任务状态。`history`、`profile` 仍为占位页，工作台仍使用演示数据；下一阶段优先补历史回溯与工作台真实数据。
+当前账号体系与核心主链路已经落地：文本录入、异步解析、结果编辑与确认、保存为项目、查看项目任务、更新任务状态。工作台、历史记录和个人中心均已接入真实接口；页面通过领域 store 访问业务数据。
 
 ## 常用命令
 
@@ -68,19 +68,19 @@ views / layouts  →  stores  →  api  →  utils / constants
 
 ### 路由 meta 驱动页面头（`src/router/routes.ts`）
 
-工作台页面的标题、描述、状态标签都写在路由 `meta` 里，由 `WorkspaceTopbar.vue` 和 `ModulePlaceholderView.vue` 读取渲染：`title`、`description`、`statusLabel`、`suggestedActions`、`endpointGroups`、`public`。meta 字段类型集中声明在 `src/types/router.d.ts`，读取时不需要 `as string` 断言。占位路由的 `endpointGroups` 记录了该模块待接入的后端接口，是实现新模块时的对照清单。
+工作台页面的标题、描述和导航归属写在路由 `meta` 里，由 `WorkspaceTopbar.vue` 和导航组件读取渲染。当前页面使用 `title`、`description`、`navKey`、`public`；`ModulePlaceholderView.vue` 还支持兜底占位页使用的 `suggestedActions`、`endpointGroups`。meta 字段类型集中声明在 `src/types/router.d.ts`，读取时不需要 `as string` 断言。
 
 标题由顶栏统一承担，页面组件内不要再重复渲染 `<h1>` 或页面描述。守卫用 `meta.public` 判断免鉴权页，`afterEach` 里同步 `document.title`。
 
-导航项集中在 `src/constants/navigation.ts`（`workspaceNavItems` + `isWorkspaceNavActive` + `findWorkspaceNavItem`），图标也在这份数据里，侧边栏与移动端抽屉共用。新增模块要同时改 `routes.ts` 和这份导航配置。
+导航项集中在 `src/constants/navigation.ts`（`workspaceNavItems` + `isWorkspaceNavActive` + `findWorkspaceNavItem`），图标也在这份数据里，侧边栏与移动端抽屉共用。“新建解析”是独立主操作，不属于信息导航；新增模块要同时改 `routes.ts` 和这份导航配置。
 
-### 新模块按业务垂直切分，不要按文件类型摊平
+### 页面按业务域垂直切分
 
-现有 `views/` 是扁平的，因为只有 auth 与 dashboard 两块。落地 `parse` / `projects` / `history` 时按业务域就近组织，同一模块的页面、私有组件、私有 composable、模块类型放在一起：
+现有页面按业务域放在 `src/views/<domain>/`，例如 `views/parse/`、`views/projects/`、`views/history/`。同一业务域新增私有组件或 composable 时继续就近组织：
 
 ```text
-src/modules/parse/
-├── views/ParseCreateView.vue      # 只被路由引用
+src/views/parse/
+├── ParseNew.vue                   # 只被路由引用
 ├── components/UploadPanel.vue     # 只服务本模块，不进 components/common/
 ├── composables/useParseJobPolling.ts
 └── types.ts
@@ -88,11 +88,11 @@ src/modules/parse/
 
 判定标准：被两个以上业务模块引用才提升到 `src/components/common/`（纯展示、不含业务语义、不 import store）或 `src/composables/`。只有一个模块用就留在模块内——宁可后面提升，也不要提前放进公共目录。
 
-`api/` 与 `stores/` 保持按资源平铺（`api/parseJob.ts`、`stores/parseJob.ts`），不要塞进模块目录，因为跨模块共享是常态（`history` 与 `parse` 都要读 parse-results）。
+`api/` 按后端资源平铺（如 `api/parseJob.ts`、`api/project.ts`），`stores/` 按业务域平铺（如 `stores/parse.ts`、`stores/project.ts`）。不要塞进页面目录，因为跨页面共享是常态（`history` 与 `parse` 都会读取解析记录）。
 
 已就位的归属约定：全局兜底页在 `views/system/`（`ModulePlaceholderView`、`NotFoundView`），不属于任何业务域；只服务某个布局的 composable 跟着布局走（`layouts/workspace/composables/useWorkspaceSidebar.ts`），布局内部用相对路径 import 以体现私有性；`composables/` 根目录只留跨模块通用且无业务语义的（如 `useGreeting`）。
 
-`mocks/` 只放假数据，类型定义放 `api/`：`mocks/dashboard.ts` 的数据形状由 `api/dashboard.ts` 的 `DashboardStats` 等类型约束。mock 文件在接口接入后整体删除，类型留下继续用——所以别把业务契约类型写进 `mocks/`。
+临时演示数据只能放在 `mocks/`，业务契约类型必须放在 `api/`。真实接口接入后应整体删除对应 mock，页面不得同时保留真实请求与演示数据两套来源。
 
 ### 组件与样式
 

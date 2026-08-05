@@ -5,18 +5,21 @@
 //   - success -> 跳结果页 /parse/:jobId/result
 //   - failed -> 展示失败原因，可返回重新录入
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { storeToRefs } from 'pinia'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Loading, CircleCheck, CircleClose } from '@element-plus/icons-vue'
-import { getParseJob, type ParseJob, type ParseJobStatus } from '@/api/parseJob'
+import { useParseStore, type ParseJobStatus } from '@/stores/parse'
 
 const route = useRoute()
 const router = useRouter()
+const parseStore = useParseStore()
+const { currentJob: job } = storeToRefs(parseStore)
 
 const jobId = Number(route.params.jobId)
-const job = ref<ParseJob | null>(null)
 const loading = ref(true)
 const errorMsg = ref('')
+const retrying = ref(false)
 
 // 轮询间隔与上限：3s 一次，最多约 5 分钟
 const POLL_INTERVAL = 3000
@@ -41,6 +44,26 @@ const statusText = computed(() => {
   }
 })
 
+const failureType = computed(() => {
+  const message = errorMsg.value.toLowerCase()
+  if (/network|timeout|连接|超时|temporar/.test(message)) {
+    return {
+      title: '网络或服务暂时不可用',
+      suggestion: '原始任务已保留，可直接重试，无需重新录入内容。',
+    }
+  }
+  if (/content|document|文本|内容|empty|格式/.test(message)) {
+    return {
+      title: '文档内容无法完成解析',
+      suggestion: '建议检查原文是否完整、清晰，再修改内容后重新解析。',
+    }
+  }
+  return {
+    title: '解析服务未能完成任务',
+    suggestion: '可以先原地重试；若仍失败，再修改原文重新解析。',
+  }
+})
+
 function clearTimer() {
   if (timer) {
     clearTimeout(timer)
@@ -62,8 +85,7 @@ async function poll() {
   }
   pollCount++
   try {
-    const data = await getParseJob(jobId)
-    job.value = data
+    const data = await parseStore.fetchJob(jobId)
     statusView.value = data.status
     loading.value = false
 
@@ -97,6 +119,26 @@ function goNew() {
 
 function goDashboard() {
   router.push('/dashboard')
+}
+
+async function handleRetry() {
+  retrying.value = true
+  clearTimer()
+  try {
+    const retried = await parseStore.retryJob(jobId)
+    pollCount = 0
+    errorMsg.value = ''
+    statusView.value = retried.status
+    loading.value = false
+    ElMessage.success('已提交重试')
+    if (retried.status === 'success') {
+      await router.replace(`/parse/${jobId}/result`)
+      return
+    }
+    scheduleNext()
+  } finally {
+    retrying.value = false
+  }
 }
 
 onMounted(() => {
@@ -149,10 +191,15 @@ onBeforeUnmount(clearTimer)
         <div class="state-icon state-icon--failed">
           <el-icon><CircleClose /></el-icon>
         </div>
-        <h2>解析失败</h2>
+        <h2>{{ failureType.title }}</h2>
         <p class="state-desc">{{ errorMsg }}</p>
+        <p class="failure-suggestion">{{ failureType.suggestion }}</p>
+        <p class="retry-count">已重试 {{ job?.retry_count ?? 0 }} 次</p>
         <div class="state-actions">
-          <el-button type="primary" @click="goNew">重新录入</el-button>
+          <el-button type="primary" :loading="retrying" @click="handleRetry">
+            重试当前任务
+          </el-button>
+          <el-button :disabled="retrying" @click="goNew">修改原文</el-button>
           <el-button @click="goDashboard">返回工作台</el-button>
         </div>
       </div>
@@ -164,110 +211,142 @@ onBeforeUnmount(clearTimer)
 .parse-processing {
   display: flex;
   justify-content: center;
-}
 
-.processing-card {
-  width: 100%;
-  max-width: 560px;
-  background: var(--color-surface);
-  border-radius: var(--radius-card);
-  box-shadow: var(--shadow-card);
-  padding: 56px 40px;
-  text-align: center;
-}
-
-.state-icon {
-  width: 72px;
-  height: 72px;
-  margin: 0 auto 20px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 36px;
-
-  &--spin {
-    color: var(--color-primary);
-    animation: tp-spin 1.1s linear infinite;
+  .processing-card {
+    width: 100%;
+    max-width: 560px;
+    background: var(--color-surface);
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-card);
+    padding: 56px 40px;
+    text-align: center;
   }
 
-  &--success {
-    background: rgba(31, 154, 103, 0.12);
-    color: var(--color-success);
-  }
-
-  &--failed {
-    background: rgba(229, 96, 76, 0.12);
-    color: var(--color-danger);
-  }
-}
-
-@keyframes tp-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-.state {
-  h2 {
-    margin: 0 0 10px;
-    font-size: 20px;
-    font-weight: 600;
-    color: var(--color-text);
-  }
-
-  .state-desc {
-    margin: 0 auto;
-    max-width: 380px;
-    font-size: 14px;
-    line-height: 1.7;
-    color: var(--color-text-soft);
-  }
-
-  .job-id {
-    margin: 20px 0 0;
-    font-size: 12px;
-    color: var(--color-text-soft);
-    opacity: 0.8;
-  }
-
-  .state-actions {
-    margin-top: 24px;
+  .state-icon {
+    width: 72px;
+    height: 72px;
+    margin: 0 auto 20px;
+    border-radius: 50%;
     display: flex;
-    gap: 12px;
+    align-items: center;
     justify-content: center;
+    font-size: 36px;
+
+    &--spin {
+      color: var(--color-primary);
+      animation: tp-spin 1.1s linear infinite;
+    }
+
+    &--success {
+      background: var(--color-success-soft);
+      color: var(--color-success);
+    }
+
+    &--failed {
+      background: var(--color-danger-soft);
+      color: var(--color-danger);
+    }
   }
-}
 
-.progress-track {
-  margin: 24px auto 0;
-  width: 240px;
-  height: 6px;
-  border-radius: 3px;
-  background: var(--color-bg);
-  overflow: hidden;
-  position: relative;
+  @keyframes tp-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
 
-  .progress-bar {
-    position: absolute;
-    inset: 0;
-    width: 40%;
+  .state {
+    h2 {
+      margin: 0 0 10px;
+      font-size: 20px;
+      font-weight: 600;
+      color: var(--color-text);
+    }
+
+    .state-desc {
+      margin: 0 auto;
+      max-width: 380px;
+      font-size: 14px;
+      line-height: 1.7;
+      color: var(--color-text-soft);
+    }
+
+    .job-id {
+      margin: 20px 0 0;
+      font-size: 12px;
+      color: var(--color-text-soft);
+      opacity: 0.8;
+    }
+
+    .state-actions {
+      margin-top: 24px;
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+    }
+
+    .failure-suggestion {
+      margin: 10px auto 0;
+      max-width: 400px;
+      color: var(--color-text);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    .retry-count {
+      margin: 12px 0 0;
+      color: var(--color-text-soft);
+      font-size: 12px;
+    }
+  }
+
+  @media (max-width: 600px) {
+    .processing-card {
+      padding: 36px 20px;
+    }
+
+    .state .state-actions {
+      align-items: stretch;
+      flex-direction: column;
+    }
+  }
+
+  .progress-track {
+    margin: 24px auto 0;
+    width: 240px;
+    height: 6px;
     border-radius: 3px;
-    background: linear-gradient(
-      90deg,
-      var(--color-primary),
-      var(--color-primary-deep)
-    );
-    animation: tp-progress 1.4s ease-in-out infinite;
-  }
-}
+    background: var(--color-bg);
+    overflow: hidden;
+    position: relative;
 
-@keyframes tp-progress {
-  0% {
-    left: -40%;
+    .progress-bar {
+      position: absolute;
+      inset: 0;
+      width: 40%;
+      border-radius: 3px;
+      background: linear-gradient(
+        90deg,
+        var(--color-primary),
+        var(--color-primary-deep)
+      );
+      animation: tp-progress 1.4s ease-in-out infinite;
+    }
   }
-  100% {
-    left: 100%;
+
+  @keyframes tp-progress {
+    0% {
+      left: -40%;
+    }
+    100% {
+      left: 100%;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .state-icon--spin,
+    .progress-bar {
+      animation: none;
+    }
   }
 }
 </style>

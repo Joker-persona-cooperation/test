@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref } from 'vue'
+import { storeToRefs } from 'pinia'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
@@ -14,25 +15,8 @@ import {
   Refresh,
   Upload,
 } from '@element-plus/icons-vue'
-import { isApiError } from '@/api/errors'
-import { getDocument, type Document as SourceDocument } from '@/api/document'
-import {
-  archiveProject,
-  deleteProject,
-  getProject,
-  unarchiveProject,
-  updateProject,
-  type Project,
-} from '@/api/project'
-import {
-  createTask,
-  deleteTask,
-  getProjectTasks,
-  reorderTasks,
-  updateTask,
-  updateTaskStatus,
-  type Task,
-} from '@/api/task'
+import { isVersionConflict, useProjectStore, type Task } from '@/stores/project'
+import { PROJECT_STATUS_LABEL, PROJECT_STATUS_TAG } from '@/constants/project'
 import {
   TASK_PRIORITY_LABEL,
   TASK_PRIORITY_OPTIONS,
@@ -41,12 +25,18 @@ import {
   type TaskPriority,
   type TaskStatus,
 } from '@/constants/task'
+import { formatDateTime } from '@/utils/date'
 
 const route = useRoute()
 const router = useRouter()
 const projectId = Number(route.params.projectId)
-const project = ref<Project | null>(null)
-const tasks = ref<Task[]>([])
+const projectStore = useProjectStore()
+const {
+  currentProject: project,
+  tasks,
+  sourceDocument,
+  sourceResult,
+} = storeToRefs(projectStore)
 const loading = ref(true)
 const errorMsg = ref('')
 // 状态切换中的任务 id，用于禁用对应卡片的下拉
@@ -56,7 +46,10 @@ const reordering = ref(false)
 const draggedTaskId = ref<number | null>(null)
 const dragOverTaskId = ref<number | null>(null)
 const suppressCardClick = ref(false)
-const sourceDocument = ref<SourceDocument | null>(null)
+const highlightedTaskId = ref<number | null>(null)
+const historyMode = computed(
+  () => route.query.mode === 'history' || project.value?.status === 'deleted',
+)
 
 const doneCount = computed(
   () => tasks.value.filter((task) => task.status === 'done').length,
@@ -94,25 +87,10 @@ function columnTasks(status: TaskStatus) {
     .sort((a, b) => a.sort_order - b.sort_order)
 }
 
-function formatDate(value: string | null) {
-  if (!value) return '未设置'
-  const date = new Date(value)
-  return Number.isNaN(date.getTime())
-    ? value
-    : date.toLocaleString('zh-CN', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-      })
-}
-
 async function loadProjectTasks() {
   // 排序回滚 / 乐观锁冲突后只刷新任务，不重载整页项目信息
   try {
-    const data = await getProjectTasks(projectId)
-    tasks.value = data.items
+    await projectStore.reloadTasks(projectId, historyMode.value)
   } catch {
     // 静默：整页加载由 loadProject 兜底提示
   }
@@ -122,22 +100,53 @@ async function loadProject() {
   loading.value = true
   errorMsg.value = ''
   try {
-    const [projectData, taskData] = await Promise.all([
-      getProject(projectId),
-      getProjectTasks(projectId),
-    ])
-    project.value = projectData
-    tasks.value = taskData.items
-    try {
-      sourceDocument.value = await getDocument(projectData.source_document_id)
-    } catch {
-      sourceDocument.value = null
-    }
+    await projectStore.loadProject(projectId, historyMode.value)
+    await focusRequestedTask()
   } catch (error) {
     errorMsg.value = error instanceof Error ? error.message : '项目加载失败'
   } finally {
     loading.value = false
   }
+}
+
+async function focusRequestedTask() {
+  const taskId = Number(route.query.task)
+  if (
+    !Number.isInteger(taskId) ||
+    !tasks.value.some((task) => task.id === taskId)
+  ) {
+    return
+  }
+  highlightedTaskId.value = taskId
+  await nextTick()
+  const reduceMotion = window.matchMedia(
+    '(prefers-reduced-motion: reduce)',
+  ).matches
+  document
+    .querySelector<HTMLElement>(`[data-task-id="${taskId}"]`)
+    ?.scrollIntoView({
+      behavior: reduceMotion ? 'auto' : 'smooth',
+      block: 'center',
+    })
+  window.setTimeout(() => {
+    if (highlightedTaskId.value === taskId) highlightedTaskId.value = null
+  }, 2600)
+}
+
+function goProjectList() {
+  const returnStatus = project.value?.status || route.query.status || 'active'
+  void router.push({
+    name: 'projects',
+    query: { status: String(returnStatus) },
+  })
+}
+
+function openSourceResult() {
+  if (!sourceResult.value) return
+  void router.push({
+    name: 'parse-result',
+    params: { jobId: sourceResult.value.parse_job_id },
+  })
 }
 
 async function changeStatus(task: Task, status: TaskStatus) {
@@ -146,9 +155,7 @@ async function changeStatus(task: Task, status: TaskStatus) {
   task.status = status
   updatingTaskIds.value.add(task.id)
   try {
-    const updated = await updateTaskStatus(task.id, status)
-    const index = tasks.value.findIndex((item) => item.id === task.id)
-    if (index >= 0) tasks.value[index] = updated
+    await projectStore.changeTaskStatus(task.id, status)
     ElMessage.success('任务状态已更新')
   } catch {
     task.status = previousStatus
@@ -208,7 +215,7 @@ async function saveProject() {
   }
   savingProject.value = true
   try {
-    project.value = await updateProject(projectId, {
+    await projectStore.saveCurrentProject(projectId, {
       version: project.value.version,
       name: projectForm.name.trim(),
       description: projectForm.description.trim() || null,
@@ -217,7 +224,7 @@ async function saveProject() {
     projectDialogVisible.value = false
     ElMessage.success('项目已更新')
   } catch (error) {
-    if (isApiError(error) && error.code === 10007) {
+    if (isVersionConflict(error)) {
       ElMessage.warning('项目已被改动，正在加载最新数据')
       await loadProject()
     }
@@ -248,12 +255,12 @@ async function handleProjectAction(
     } catch {
       return
     }
-    project.value = await archiveProject(projectId)
+    await projectStore.archiveCurrentProject(projectId)
     ElMessage.success('项目已归档')
     return
   }
   if (command === 'unarchive') {
-    project.value = await unarchiveProject(projectId)
+    await projectStore.unarchiveCurrentProject(projectId)
     ElMessage.success('项目已恢复')
     return
   }
@@ -271,9 +278,9 @@ async function handleProjectAction(
   } catch {
     return
   }
-  await deleteProject(projectId)
+  await projectStore.removeCurrentProject(projectId)
   ElMessage.success('项目已删除')
-  await router.push({ name: 'projects' })
+  await router.push({ name: 'projects', query: { status: 'deleted' } })
 }
 
 async function saveTask() {
@@ -285,22 +292,21 @@ async function saveTask() {
   savingTask.value = true
   try {
     if (dialogMode.value === 'create') {
-      let created = await createTask(projectId, {
+      let created = await projectStore.addTask(projectId, {
         title,
         description: form.description.trim() || null,
         priority: form.priority,
         deadline: form.deadline || null,
       })
       if (form.status !== created.status) {
-        created = await updateTaskStatus(created.id, form.status)
+        created = await projectStore.changeTaskStatus(created.id, form.status)
       }
-      tasks.value.push(created)
       ElMessage.success('任务已添加')
       dialogVisible.value = false
     } else {
       const id = form.id
       if (!id) return
-      let updated = await updateTask(id, {
+      let updated = await projectStore.saveTask(id, {
         version: form.version,
         title,
         description: form.description.trim() || null,
@@ -308,16 +314,14 @@ async function saveTask() {
         deadline: form.deadline || null,
       })
       if (form.status !== updated.status) {
-        updated = await updateTaskStatus(id, form.status)
+        updated = await projectStore.changeTaskStatus(id, form.status)
       }
-      const index = tasks.value.findIndex((item) => item.id === updated.id)
-      if (index >= 0) tasks.value[index] = updated
       ElMessage.success('任务已更新')
       dialogVisible.value = false
     }
   } catch (error) {
     // 乐观锁冲突（code 10007）：刷新任务列表拿到最新 version 后让用户重试
-    if (isApiError(error) && error.code === 10007) {
+    if (isVersionConflict(error)) {
       ElMessage.warning('任务已被改动，已刷新最新版本，请重试')
       await loadProjectTasks()
       dialogVisible.value = false
@@ -342,8 +346,7 @@ async function removeTask() {
   }
   removingTask.value = true
   try {
-    await deleteTask(form.id)
-    tasks.value = tasks.value.filter((item) => item.id !== form.id)
+    await projectStore.removeTask(form.id)
     ElMessage.success('任务已删除')
     dialogVisible.value = false
   } catch {
@@ -369,17 +372,40 @@ async function persistTaskOrder(
   }
   reordering.value = true
   try {
-    const reordered = await reorderTasks({
+    await projectStore.reorderProjectTasks({
       project_id: projectId,
       task_ids: taskIds,
     })
-    tasks.value = reordered.items
   } catch {
     // 服务端拒绝或网络失败：拉回服务端权威顺序
     await loadProjectTasks()
   } finally {
     reordering.value = false
   }
+}
+
+function canMoveTask(task: Task, direction: -1 | 1) {
+  const ordered = columnTasks(task.status)
+  const index = ordered.findIndex((item) => item.id === task.id)
+  return (
+    index >= 0 && index + direction >= 0 && index + direction < ordered.length
+  )
+}
+
+async function moveTask(task: Task, direction: -1 | 1) {
+  if (readonly.value || reordering.value || !canMoveTask(task, direction))
+    return
+  const ordered = columnTasks(task.status)
+  const index = ordered.findIndex((item) => item.id === task.id)
+  const target = index + direction
+  ;[ordered[index], ordered[target]] = [ordered[target]!, ordered[index]!]
+  await persistTaskOrder(task.status, ordered)
+}
+
+function handleCardKeydown(task: Task, event: KeyboardEvent) {
+  if (event.key !== 'Enter' && event.key !== ' ') return
+  event.preventDefault()
+  handleCardClick(task)
 }
 
 function handleDragStart(task: Task, event: DragEvent) {
@@ -446,47 +472,45 @@ onMounted(() => {
       :sub-title="errorMsg"
     >
       <template #extra>
-        <el-button @click="router.push({ name: 'projects' })"
-          >返回项目列表</el-button
-        >
+        <el-button @click="goProjectList">返回项目列表</el-button>
         <el-button type="primary" @click="loadProject">重新加载</el-button>
       </template>
     </el-result>
 
     <template v-else-if="project">
       <section class="surface project-head">
-        <el-button
-          text
-          :icon="ArrowLeft"
-          @click="router.push({ name: 'projects' })"
+        <el-button text :icon="ArrowLeft" @click="goProjectList"
           >项目列表</el-button
         >
         <div class="project-title">
           <div class="title-row">
             <h2>{{ project.name }}</h2>
-            <el-tag
-              :type="project.status === 'active' ? 'success' : 'info'"
-              effect="plain"
-            >
-              {{ project.status === 'active' ? '进行中' : '已归档' }}
+            <el-tag :type="PROJECT_STATUS_TAG[project.status]" effect="plain">
+              {{ PROJECT_STATUS_LABEL[project.status] }}
             </el-tag>
           </div>
           <p>{{ project.description || '管理由解析结果生成的任务清单。' }}</p>
           <div class="project-meta">
             <span
-              ><strong>截止日期</strong>{{ formatDate(project.deadline) }}</span
+              ><strong>截止日期</strong
+              >{{ formatDateTime(project.deadline) }}</span
             >
             <span
               ><strong>创建日期</strong
-              >{{ formatDate(project.created_at) }}</span
+              >{{ formatDateTime(project.created_at) }}</span
             >
-            <span>
+            <button
+              type="button"
+              class="source-link"
+              :disabled="!sourceResult"
+              @click="openSourceResult"
+            >
               <strong>来源文档</strong>
               <el-icon><Document /></el-icon>
               {{
                 sourceDocument?.title || `文档 #${project.source_document_id}`
               }}
-            </span>
+            </button>
           </div>
         </div>
         <div class="project-progress">
@@ -502,7 +526,11 @@ onMounted(() => {
             @click="openCreateForColumn('todo')"
             >新增任务</el-button
           >
-          <el-dropdown trigger="click" @command="handleProjectAction">
+          <el-dropdown
+            v-if="project.status !== 'deleted'"
+            trigger="click"
+            @command="handleProjectAction"
+          >
             <el-button :icon="MoreFilled">操作</el-button>
             <template #dropdown>
               <el-dropdown-menu>
@@ -521,7 +549,12 @@ onMounted(() => {
                     <el-icon><Upload /></el-icon>
                     取消归档
                   </el-dropdown-item>
-                  <el-dropdown-item command="delete" divided class="danger-item" style="color: var(--el-color-danger)">
+                  <el-dropdown-item
+                    command="delete"
+                    divided
+                    class="danger-item"
+                    style="color: var(--el-color-danger)"
+                  >
                     <el-icon><Delete /></el-icon>
                     删除项目
                   </el-dropdown-item>
@@ -542,7 +575,11 @@ onMounted(() => {
         v-if="readonly"
         type="info"
         :closable="false"
-        title="已归档项目为只读状态，恢复项目后才能修改任务。"
+        :title="
+          project.status === 'deleted'
+            ? '已删除项目仅保留审计记录，不能恢复或编辑。'
+            : '已归档项目为只读状态，恢复项目后才能修改任务。'
+        "
         class="archive-alert"
       />
 
@@ -580,11 +617,13 @@ onMounted(() => {
                 'is-dragging': draggedTaskId === task.id,
                 'is-drag-over': dragOverTaskId === task.id,
                 'is-editable': !readonly,
+                'is-highlighted': highlightedTaskId === task.id,
               }"
+              :data-task-id="task.id"
               :draggable="!readonly && !reordering"
               tabindex="0"
               @click="handleCardClick(task)"
-              @keydown.enter="handleCardClick(task)"
+              @keydown="handleCardKeydown(task, $event)"
               @dragstart="handleDragStart(task, $event)"
               @dragover="handleDragOver(task, $event)"
               @drop="handleDrop(task, $event)"
@@ -592,7 +631,7 @@ onMounted(() => {
             >
               <div class="task-card-head">
                 <h3>{{ task.title }}</h3>
-                <span v-if="!readonly" class="drag-hint">拖拽排序</span>
+                <span v-if="!readonly" class="drag-hint">拖拽或按钮排序</span>
               </div>
               <p v-if="task.description">{{ task.description }}</p>
               <div class="task-meta">
@@ -610,8 +649,23 @@ onMounted(() => {
                   >AI</el-tag
                 >
                 <span v-if="task.deadline" class="task-deadline">
-                  <el-icon><Calendar /></el-icon>{{ formatDate(task.deadline) }}
+                  <el-icon><Calendar /></el-icon
+                  >{{ formatDateTime(task.deadline) }}
                 </span>
+              </div>
+              <div v-if="!readonly" class="task-reorder" @click.stop>
+                <el-button
+                  size="small"
+                  :disabled="reordering || !canMoveTask(task, -1)"
+                  @click="moveTask(task, -1)"
+                  >上移</el-button
+                >
+                <el-button
+                  size="small"
+                  :disabled="reordering || !canMoveTask(task, 1)"
+                  @click="moveTask(task, 1)"
+                  >下移</el-button
+                >
               </div>
               <el-select
                 :model-value="task.status"
@@ -642,7 +696,7 @@ onMounted(() => {
     <el-dialog
       v-model="dialogVisible"
       :title="dialogMode === 'create' ? '新增任务' : '编辑任务'"
-      width="480px"
+      width="min(480px, calc(100vw - 32px))"
       :close-on-click-modal="false"
       class="rounded-dialog"
     >
@@ -723,7 +777,7 @@ onMounted(() => {
     <el-dialog
       v-model="projectDialogVisible"
       title="编辑项目"
-      width="520px"
+      width="min(520px, calc(100vw - 32px))"
       :close-on-click-modal="false"
       class="rounded-dialog"
     >
@@ -764,259 +818,350 @@ onMounted(() => {
 .project-detail {
   max-width: 1280px;
   margin: 0 auto;
-}
-.surface {
-  padding: 20px;
-  border-radius: var(--radius-card);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-card);
-}
-.project-head {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) 180px auto;
-  align-items: center;
-  gap: 18px;
-}
-.project-title {
-  min-width: 0;
-}
-.title-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.title-row h2 {
-  overflow: hidden;
-  margin: 0;
-  color: var(--color-text);
-  font-size: 20px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.project-title p {
-  margin: 5px 0 0;
-  color: var(--color-text-soft);
-  font-size: 13px;
-}
-.project-meta {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px 18px;
-  margin-top: 14px;
-}
-.project-meta span {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  color: var(--color-text-soft);
-  font-size: 12px;
-}
-.project-meta strong {
-  color: var(--color-text);
-  font-weight: 600;
-}
-.project-progress {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  align-items: center;
-  gap: 4px 10px;
-}
-.project-progress strong {
-  grid-row: 1 / 3;
-  color: var(--color-primary-deep);
-  font-size: 20px;
-}
-.project-progress span {
-  color: var(--color-text-soft);
-  font-size: 11px;
-}
-.project-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.project-actions :deep(.el-button) {
-  border-radius: 14px;
-}
-.archive-alert {
-  margin-top: 16px;
-}
-.kanban {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
-  margin-top: 18px;
-}
-.kanban-column {
-  min-width: 0;
-  border-radius: var(--radius-card);
-  background: color-mix(in srgb, var(--color-surface) 70%, var(--color-bg));
-  border: 1px solid var(--color-border);
-}
-.column-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 15px 16px;
-  border-bottom: 1px solid var(--color-border);
-  color: var(--color-text);
-  font-size: 14px;
-  font-weight: 650;
-}
-.column-head div {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.column-head-tail {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.column-head-tail > span {
-  min-width: 24px;
-  padding: 2px 7px;
-  border-radius: 999px;
-  background: var(--color-bg);
-  color: var(--color-text-soft);
-  text-align: center;
-  font-size: 11px;
-}
-.status-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-}
-.status-dot--todo {
-  background: var(--color-text-soft);
-}
-.status-dot--doing {
-  background: var(--color-primary);
-}
-.status-dot--done {
-  background: var(--color-success);
-}
-.column-body {
-  min-height: 220px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 12px;
-}
-.task-card {
-  padding: 14px;
-  border: 1px solid var(--color-border);
-  border-radius: 11px;
-  background: var(--color-surface);
-  box-shadow: 0 3px 12px rgba(22, 50, 75, 0.06);
-  transition:
-    border-color 0.18s ease,
-    box-shadow 0.18s ease,
-    opacity 0.18s ease,
-    transform 0.18s ease;
-}
-.task-card.is-editable {
-  cursor: pointer;
-}
-.task-card.is-editable:hover,
-.task-card.is-editable:focus-visible {
-  border-color: var(--color-primary);
-  box-shadow: var(--shadow-hover);
-  outline: none;
-  transform: translateY(-1px);
-}
-.task-card.is-dragging {
-  opacity: 0.45;
-}
-.task-card.is-drag-over {
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 2px var(--color-primary-soft);
-}
-.task-card-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 8px;
-}
-.task-card-head h3 {
-  flex: 1 1 auto;
-  min-width: 0;
-  margin: 0;
-  color: var(--color-text);
-  font-size: 14px;
-  line-height: 1.5;
-}
-.drag-hint {
-  flex: 0 0 auto;
-  color: var(--color-text-soft);
-  font-size: 11px;
-  opacity: 0;
-  transition: opacity 0.18s ease;
-}
-.task-card:hover .drag-hint,
-.task-card:focus-visible .drag-hint {
-  opacity: 1;
-}
-.task-card p {
-  margin: 7px 0 0;
-  color: var(--color-text-soft);
-  font-size: 12px;
-  line-height: 1.55;
-}
-.task-meta {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin: 12px 0;
-}
-.task-deadline {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  color: var(--color-text-soft);
-  font-size: 11px;
-}
-.task-card :deep(.el-select) {
-  width: 100%;
-}
-.dialog-footer {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.dialog-footer-spacer {
-  flex: 1;
-}
-@media (max-width: 980px) {
-  .kanban {
-    grid-template-columns: 1fr;
+
+  .surface {
+    padding: 20px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-card);
+    background: var(--color-surface);
+    box-shadow: var(--shadow-card);
   }
   .project-head {
-    grid-template-columns: auto 1fr auto;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) 180px auto;
+    align-items: center;
+    gap: 18px;
   }
-  .project-progress {
-    grid-column: 2 / 4;
+  .project-title {
+    min-width: 0;
+
+    .title-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+
+      h2 {
+        overflow: hidden;
+        margin: 0;
+        color: var(--color-text);
+        font-size: 20px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+    }
+
+    p {
+      margin: 5px 0 0;
+      color: var(--color-text-soft);
+      font-size: 13px;
+    }
   }
   .project-meta {
-    gap: 8px 12px;
-  }
-}
-@media (max-width: 600px) {
-  .project-head {
-    grid-template-columns: 1fr auto;
-  }
-  .project-head > :first-child {
-    grid-column: 1 / 3;
-    justify-self: start;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px 18px;
+    margin-top: 14px;
+
+    span {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      color: var(--color-text-soft);
+      font-size: 12px;
+    }
+
+    strong {
+      color: var(--color-text);
+      font-weight: 600;
+    }
+
+    .source-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: var(--color-primary-deep);
+      font: inherit;
+      cursor: pointer;
+
+      &:disabled {
+        color: var(--color-text-soft);
+        cursor: default;
+      }
+
+      &:focus-visible {
+        outline: 2px solid var(--color-primary);
+        outline-offset: 2px;
+        border-radius: 4px;
+      }
+    }
   }
   .project-progress {
-    grid-column: 1 / 3;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    gap: 4px 10px;
+
+    strong {
+      grid-row: 1 / 3;
+      color: var(--color-primary-deep);
+      font-size: 20px;
+    }
+
+    span {
+      color: var(--color-text-soft);
+      font-size: 11px;
+    }
   }
   .project-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    :deep(.el-button) {
+      border-radius: 14px;
+    }
+  }
+  .archive-alert {
+    margin-top: 16px;
+  }
+  .kanban {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+    margin-top: 18px;
+  }
+  .kanban-column {
+    min-width: 0;
+    border-radius: var(--radius-card);
+    background: color-mix(in srgb, var(--color-surface) 70%, var(--color-bg));
+    border: 1px solid var(--color-border);
+  }
+  .column-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 15px 16px;
+    border-bottom: 1px solid var(--color-border);
+    color: var(--color-text);
+    font-size: 14px;
+    font-weight: 650;
+
+    div {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    &-tail {
+      gap: 6px;
+
+      > span {
+        min-width: 24px;
+        padding: 2px 7px;
+        border-radius: 999px;
+        background: var(--color-bg);
+        color: var(--color-text-soft);
+        text-align: center;
+        font-size: 11px;
+      }
+    }
+  }
+  .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+
+    &--todo {
+      background: var(--color-text-soft);
+    }
+
+    &--doing {
+      background: var(--color-primary);
+    }
+
+    &--done {
+      background: var(--color-success);
+    }
+  }
+  .column-body {
+    min-height: 220px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px;
+  }
+  .task-card {
+    padding: 14px;
+    border: 1px solid var(--color-border);
+    border-radius: 11px;
+    background: var(--color-surface);
+    box-shadow: var(--shadow-card);
+    transition:
+      border-color 0.18s ease,
+      box-shadow 0.18s ease,
+      opacity 0.18s ease,
+      transform 0.18s ease;
+
+    &.is-editable {
+      cursor: pointer;
+
+      &:hover,
+      &:focus-visible {
+        border-color: var(--color-primary);
+        box-shadow: var(--shadow-hover);
+        transform: translateY(-1px);
+      }
+
+      &:focus-visible {
+        outline: 2px solid var(--color-primary);
+        outline-offset: 2px;
+      }
+    }
+
+    &.is-dragging {
+      opacity: 0.45;
+    }
+
+    &.is-drag-over {
+      border-color: var(--color-primary);
+      box-shadow: 0 0 0 2px var(--color-primary-soft);
+    }
+
+    &.is-highlighted {
+      border-color: var(--color-primary);
+      box-shadow: 0 0 0 3px var(--color-primary-soft);
+      animation: task-highlight 1.2s ease-in-out 2;
+    }
+
+    &-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 8px;
+
+      h3 {
+        flex: 1 1 auto;
+        min-width: 0;
+        margin: 0;
+        color: var(--color-text);
+        font-size: 14px;
+        line-height: 1.5;
+      }
+    }
+
+    &:hover .drag-hint,
+    &:focus-visible .drag-hint {
+      opacity: 1;
+    }
+
+    p {
+      margin: 7px 0 0;
+      color: var(--color-text-soft);
+      font-size: 12px;
+      line-height: 1.55;
+    }
+
+    :deep(.el-select) {
+      width: 100%;
+    }
+  }
+  @keyframes task-highlight {
+    50% {
+      background: var(--color-primary-soft);
+    }
+  }
+  .drag-hint {
+    flex: 0 0 auto;
+    color: var(--color-text-soft);
+    font-size: 11px;
+    opacity: 0;
+    transition: opacity 0.18s ease;
+  }
+  .task-meta {
+    display: flex;
+    align-items: center;
     flex-wrap: wrap;
-    justify-content: flex-end;
+    gap: 6px;
+    margin: 12px 0;
+  }
+  .task-deadline {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--color-text-soft);
+    font-size: 11px;
+  }
+  .task-reorder {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 8px;
+
+    :deep(.el-button) {
+      flex: 1;
+      margin: 0;
+    }
+  }
+  .dialog-footer {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    &-spacer {
+      flex: 1;
+    }
+  }
+  @media (max-width: 980px) {
+    .kanban {
+      grid-template-columns: 1fr;
+    }
+    .project-head {
+      grid-template-columns: auto 1fr auto;
+    }
+    .project-progress {
+      grid-column: 2 / 4;
+    }
+    .project-meta {
+      gap: 8px 12px;
+    }
+  }
+  @media (max-width: 600px) {
+    .project-head {
+      grid-template-columns: 1fr auto;
+    }
+    .project-head > :first-child {
+      grid-column: 1 / 3;
+      justify-self: start;
+    }
+    .project-progress {
+      grid-column: 1 / 3;
+    }
+    .project-actions {
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+    .drag-hint {
+      display: none;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .task-card,
+    .drag-hint {
+      transition: none;
+    }
+
+    .task-card.is-editable:hover,
+    .task-card.is-editable:focus-visible {
+      transform: none;
+    }
+
+    .task-card.is-highlighted {
+      animation: none;
+    }
   }
 }
 </style>

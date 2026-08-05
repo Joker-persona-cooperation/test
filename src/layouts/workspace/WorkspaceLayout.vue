@@ -1,9 +1,31 @@
 <script setup lang="ts">
+import { nextTick, onBeforeUnmount, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import WorkspaceSidebar from './components/WorkspaceSidebar.vue'
 import WorkspaceTopbar from './components/WorkspaceTopbar.vue'
 import { useWorkspaceSidebar } from './composables/useWorkspaceSidebar'
 
 const { mobileNavOpen, closeMobileNav } = useWorkspaceSidebar()
+const router = useRouter()
+const contentEl = ref<HTMLElement>()
+const scrollPositions = new Map<string, number>()
+
+const removeBeforeGuard = router.beforeEach((_to, from) => {
+  if (contentEl.value) {
+    scrollPositions.set(from.fullPath, contentEl.value.scrollTop)
+  }
+  return true
+})
+
+const removeAfterHook = router.afterEach(async (to) => {
+  await nextTick()
+  contentEl.value?.scrollTo({ top: scrollPositions.get(to.fullPath) ?? 0 })
+})
+
+onBeforeUnmount(() => {
+  removeBeforeGuard()
+  removeAfterHook()
+})
 </script>
 
 <template>
@@ -12,12 +34,14 @@ const { mobileNavOpen, closeMobileNav } = useWorkspaceSidebar()
 
     <div class="workspace-layout__main">
       <WorkspaceTopbar />
-      <main class="workspace-layout__content">
-        <router-view v-slot="{ Component }">
-          <transition name="fade-slide" mode="out-in">
-            <component :is="Component" />
-          </transition>
-        </router-view>
+      <main ref="contentEl" class="workspace-layout__content">
+        <div class="workspace-layout__content-inner">
+          <router-view v-slot="{ Component }">
+            <transition name="fade-slide" mode="out-in">
+              <component :is="Component" />
+            </transition>
+          </router-view>
+        </div>
       </main>
     </div>
 
@@ -38,6 +62,7 @@ const { mobileNavOpen, closeMobileNav } = useWorkspaceSidebar()
 <style lang="scss" scoped>
 .workspace-layout {
   height: 100vh;
+  height: 100dvh;
   display: flex;
   background: var(--color-bg);
 
@@ -52,6 +77,13 @@ const { mobileNavOpen, closeMobileNav } = useWorkspaceSidebar()
     flex: 1;
     overflow-y: auto;
     padding: 24px;
+  }
+
+  &__content-inner {
+    width: 100%;
+    max-width: 1280px;
+    min-height: 100%;
+    margin: 0 auto;
   }
 }
 

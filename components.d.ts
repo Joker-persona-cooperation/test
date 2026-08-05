@@ -14,6 +14,7 @@ declare module 'vue' {
     AppPanel: typeof import('./src/components/common/AppPanel.vue')['default']
     AppStatCard: typeof import('./src/components/common/AppStatCard.vue')['default']
     ElAlert: typeof import('element-plus/es')['ElAlert']
+    ElAvatar: typeof import('element-plus/es')['ElAvatar']
     ElButton: typeof import('element-plus/es')['ElButton']
     ElCheckbox: typeof import('element-plus/es')['ElCheckbox']
     ElCol: typeof import('element-plus/es')['ElCol']

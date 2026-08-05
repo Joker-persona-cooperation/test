@@ -6,11 +6,10 @@
 import { ref, reactive, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
-import { Document as DocIcon } from '@element-plus/icons-vue'
-import { createTextDocument } from '@/api/document'
-import { createParseJob } from '@/api/parseJob'
+import { useParseStore } from '@/stores/parse'
 
 const router = useRouter()
+const parseStore = useParseStore()
 
 const formRef = ref<FormInstance>()
 const submitting = ref(false)
@@ -41,13 +40,7 @@ async function handleSubmit() {
   if (!valid) return
   submitting.value = true
   try {
-    // 第一步：录入文本文档
-    const doc = await createTextDocument({
-      title: form.title.trim(),
-      text: form.content,
-    })
-    // 第二步：基于文档创建解析任务
-    const job = await createParseJob({ document_id: doc.id })
+    const job = await parseStore.createFromText(form.title.trim(), form.content)
     ElMessage.success('已提交解析，正在处理中')
     router.replace(`/parse/${job.id}/processing`)
   } catch {
@@ -80,19 +73,6 @@ function fillExample() {
 <template>
   <div class="parse-new">
     <div class="parse-new__card">
-      <div class="parse-new__head">
-        <div class="head-icon">
-          <el-icon><DocIcon /></el-icon>
-        </div>
-        <div class="head-text">
-          <h2>新建解析</h2>
-          <p>
-            粘贴任务文档或需求描述，AI
-            将自动拆解为目标、交付物、要求、风险与任务清单。
-          </p>
-        </div>
-      </div>
-
       <el-form
         ref="formRef"
         :model="form"
@@ -118,7 +98,7 @@ function fillExample() {
             placeholder="在此粘贴需求文档、会议纪要、任务说明等文本内容..."
             resize="vertical"
           />
-          <div class="content-meta">
+          <div class="parse-new__content-meta">
             <span>{{ contentLength }} 字</span>
             <el-button link type="primary" @click="fillExample">
               填充示例
@@ -126,12 +106,12 @@ function fillExample() {
           </div>
         </el-form-item>
         <el-form-item>
-          <div class="form-actions">
+          <div class="parse-new__actions">
             <el-button size="large" @click="router.push('/dashboard')">
               取消
             </el-button>
             <el-button
-              class="parse-submit"
+              class="parse-new__submit"
               type="primary"
               size="large"
               native-type="submit"
@@ -145,7 +125,7 @@ function fillExample() {
       </el-form>
 
       <div class="parse-new__tip">
-        <span class="tip-badge">提示</span>
+        <span class="parse-new__tip-badge">提示</span>
         PDF 文件上传能力将在后续版本支持，当前请使用文本粘贴方式。
       </div>
     </div>
@@ -155,84 +135,51 @@ function fillExample() {
 <style lang="scss" scoped>
 .parse-new {
   max-width: 820px;
+  margin: 0 auto;
 
   &__card {
-    background: var(--color-surface);
-    border-radius: var(--radius-card);
-    box-shadow: var(--shadow-card);
     padding: 32px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-card);
+    background: var(--color-surface);
+    box-shadow: var(--shadow-card);
   }
 
-  &__head {
+  &__content-meta {
+    width: 100%;
     display: flex;
-    gap: 16px;
-    margin-bottom: 28px;
-
-    .head-icon {
-      width: 44px;
-      height: 44px;
-      flex-shrink: 0;
-      border-radius: 12px;
-      background: var(--color-primary-soft);
-      color: var(--color-primary-deep);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 22px;
-    }
-
-    .head-text {
-      h2 {
-        margin: 0 0 4px;
-        font-size: 20px;
-        font-weight: 600;
-        color: var(--color-text);
-      }
-
-      p {
-        margin: 0;
-        font-size: 13px;
-        color: var(--color-text-soft);
-        line-height: 1.6;
-      }
-    }
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 6px;
+    color: var(--color-text-soft);
+    font-size: 12px;
   }
-}
 
-.content-meta {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-top: 6px;
-  font-size: 12px;
-  color: var(--color-text-soft);
-}
+  &__actions {
+    width: 100%;
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+  }
 
-.form-actions {
-  width: 100%;
-  display: flex;
-  gap: 12px;
-  justify-content: flex-end;
-}
+  &__submit {
+    min-width: 140px;
+    font-size: 15px;
+  }
 
-.parse-submit {
-  min-width: 140px;
-  font-size: 15px;
-}
+  &__tip {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 20px;
+    padding: 12px 14px;
+    border-radius: var(--radius-control);
+    background: var(--color-bg);
+    color: var(--color-text-soft);
+    font-size: 13px;
+  }
 
-.parse-new__tip {
-  margin-top: 20px;
-  padding: 12px 14px;
-  background: var(--color-bg);
-  border-radius: var(--radius-control);
-  font-size: 13px;
-  color: var(--color-text-soft);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-
-  .tip-badge {
+  &__tip-badge {
     flex-shrink: 0;
     padding: 2px 8px;
     border-radius: 4px;
@@ -240,6 +187,22 @@ function fillExample() {
     color: var(--color-primary-deep);
     font-size: 12px;
     font-weight: 600;
+  }
+
+  @media (max-width: 600px) {
+    &__card {
+      padding: 20px;
+    }
+
+    &__actions {
+      align-items: stretch;
+      flex-direction: column-reverse;
+
+      :deep(.el-button) {
+        width: 100%;
+        margin: 0;
+      }
+    }
   }
 }
 </style>

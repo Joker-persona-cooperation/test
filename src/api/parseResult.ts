@@ -20,6 +20,10 @@ export interface UpdateParseResultParams {
   generated_tasks: ParseResult['generated_tasks']
 }
 
+export function getParseResult(resultId: number): Promise<ParseResult> {
+  return http.get<ParseResult>(`/parse-results/${resultId}`)
+}
+
 export function updateParseResult(
   resultId: number,
   params: UpdateParseResultParams,

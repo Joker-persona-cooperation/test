@@ -8,8 +8,8 @@ declare module 'vue-router' {
     title?: string
     /** 页面头副标题 */
     description?: string
-    /** 页面头右侧状态标签 */
-    statusLabel?: string
+    /** 当前路由在工作区主导航中的归属 */
+    navKey?: 'dashboard' | 'projects' | 'parse-records' | 'profile'
     /** 免鉴权页面 */
     public?: boolean
     /** 占位页：本页待完成的目标 */
