@@ -1,11 +1,19 @@
 <script setup lang="ts">
-// 第一步 + 第二步：文本录入页
-// 1) 录入文本 -> POST /documents/text 创建文档
+// 第一步 + 第二步：文本/PDF 录入页
+// 1) 录入文本或上传 PDF -> POST /documents/text 或 /documents/pdf 创建文档
 // 2) 拿到 documentId -> POST /parse-jobs 创建解析任务
 // 3) 拿到 jobId -> 跳转处理中页 /parse/:jobId/processing
 import { ref, reactive, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
+import {
+  ElMessage,
+  type FormInstance,
+  type FormRules,
+  type UploadFile,
+  type UploadFiles,
+  type UploadUserFile,
+} from 'element-plus'
+import { UploadFilled } from '@element-plus/icons-vue'
 import { useParseStore } from '@/stores/parse'
 
 const router = useRouter()
@@ -20,19 +28,75 @@ const form = reactive({
   content: '',
 })
 
+// PDF 导入：单文件、拖拽选择，选中后无需再填文本
+const MAX_PDF_SIZE = 20 * 1024 * 1024 // 20MB
+const pdfFile = ref<File | null>(null)
+const pdfFileList = ref<UploadUserFile[]>([])
+const pdfName = computed(() =>
+  pdfFile.value ? `${pdfFile.value.name}（${formatSize(pdfFile.value.size)}）` : '',
+)
+
+function formatSize(size: number) {
+  if (size < 1024) return `${size} B`
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`
+  return `${(size / 1024 / 1024).toFixed(1)} MB`
+}
+
 const rules: FormRules = {
   title: [
     { required: true, message: '请输入文档标题', trigger: 'blur' },
     { max: 80, message: '标题不能超过 80 个字符', trigger: 'blur' },
   ],
   content: [
-    { required: true, message: '请输入需要解析的文档内容', trigger: 'blur' },
     {
-      min: 20,
-      message: '内容过短，建议至少 20 个字符以便解析',
+      validator: (_rule, value, callback) => {
+        // 已导入 PDF 时文本非必填
+        if (pdfFile.value) return callback()
+        if (!value || !value.trim()) {
+          return callback(new Error('请输入需要解析的文档内容，或导入 PDF 文件'))
+        }
+        if (value.trim().length < 20) {
+          return callback(new Error('内容过短，建议至少 20 个字符以便解析'))
+        }
+        callback()
+      },
       trigger: 'blur',
     },
   ],
+}
+
+function handlePdfChange(uploadFile: UploadFile, uploadFiles: UploadFiles) {
+  const raw = uploadFile.raw
+  // 校验类型与大小，不合规则则清空列表
+  if (!raw || (!raw.type.includes('pdf') && !raw.name.toLowerCase().endsWith('.pdf'))) {
+    ElMessage.error('仅支持导入 PDF 文件')
+    pdfFileList.value = []
+    pdfFile.value = null
+    return
+  }
+  if (raw.size > MAX_PDF_SIZE) {
+    ElMessage.error('PDF 文件不能超过 20MB')
+    pdfFileList.value = []
+    pdfFile.value = null
+    return
+  }
+  pdfFile.value = raw
+  pdfFileList.value = uploadFiles.slice(-1)
+  // 标题为空时用文件名作为默认标题
+  if (!form.title.trim()) {
+    form.title = raw.name.replace(/\.pdf$/i, '')
+  }
+}
+
+function handlePdfRemove() {
+  pdfFile.value = null
+  pdfFileList.value = []
+}
+
+function handlePdfExceed(files: UploadFile[]) {
+  pdfFileList.value = [files[files.length - 1]]
+  pdfFile.value = files[files.length - 1].raw ?? null
+  ElMessage.warning('一次只能导入一个 PDF，已替换为最新选择的文件')
 }
 
 async function handleSubmit() {
@@ -40,7 +104,9 @@ async function handleSubmit() {
   if (!valid) return
   submitting.value = true
   try {
-    const job = await parseStore.createFromText(form.title.trim(), form.content)
+    const job = pdfFile.value
+      ? await parseStore.createFromPdf(pdfFile.value, form.title.trim() || undefined)
+      : await parseStore.createFromText(form.title.trim(), form.content)
     ElMessage.success('已提交解析，正在处理中')
     router.replace(`/parse/${job.id}/processing`)
   } catch {
@@ -126,16 +192,45 @@ function fillExample() {
           />
         </el-form-item>
         <el-form-item label="文档内容" prop="content">
+          <el-upload
+            class="parse-new__pdf"
+            drag
+            accept="application/pdf,.pdf"
+            :auto-upload="false"
+            :limit="1"
+            v-model:file-list="pdfFileList"
+            :on-change="handlePdfChange"
+            :on-remove="handlePdfRemove"
+            :on-exceed="handlePdfExceed"
+          >
+            <el-icon class="parse-new__pdf-icon"><UploadFilled /></el-icon>
+            <div class="el-upload__text">拖拽 PDF 到此处，或 <em>点击选择文件</em></div>
+            <template #tip>
+              <div class="el-upload__tip">
+                支持 .pdf 格式，单个文件不超过 20MB；导入后标题自动取文件名，可不填下方文本
+              </div>
+            </template>
+          </el-upload>
           <el-input
+            v-if="!pdfFile"
             v-model="form.content"
             type="textarea"
             :autosize="{ minRows: 12, maxRows: 20 }"
             placeholder="在此粘贴需求文档、会议纪要、任务说明等文本内容..."
             resize="vertical"
           />
+          <el-input
+            v-else
+            :model-value="pdfName"
+            type="textarea"
+            :autosize="{ minRows: 2, maxRows: 4 }"
+            placeholder="已导入 PDF 文件"
+            readonly
+            resize="none"
+          />
           <div class="parse-new__content-meta">
-            <span>{{ contentLength }} 字</span>
-            <el-button link type="primary" @click="fillExample">
+            <span>{{ pdfFile ? `已导入 ${pdfName}` : `${contentLength} 字` }}</span>
+            <el-button v-if="!pdfFile" link type="primary" @click="fillExample">
               填充示例（{{ exampleTemplates.length }} 选 1）
             </el-button>
           </div>
@@ -151,7 +246,7 @@ function fillExample() {
               size="large"
               native-type="submit"
               :loading="submitting"
-              :disabled="!form.content"
+              :disabled="!form.content && !pdfFile"
             >
               {{ submitting ? '提交中...' : '提交解析' }}
             </el-button>
@@ -161,7 +256,7 @@ function fillExample() {
 
       <div class="parse-new__tip">
         <span class="parse-new__tip-badge">提示</span>
-        PDF 文件上传能力将在后续版本支持，当前请使用文本粘贴方式。
+        支持文本粘贴或 PDF 文件导入两种方式，二选一即可提交解析。
       </div>
     </div>
   </div>
@@ -222,6 +317,20 @@ function fillExample() {
     color: var(--color-primary-deep);
     font-size: 12px;
     font-weight: 600;
+  }
+
+  &__pdf {
+    width: 100%;
+    margin-bottom: 16px;
+
+    &-icon {
+      font-size: 40px;
+      color: var(--color-text-soft);
+    }
+
+    :deep(.el-upload-dragger) {
+      padding: 20px;
+    }
   }
 
   @media (max-width: 600px) {

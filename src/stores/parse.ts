@@ -1,6 +1,11 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { createTextDocument, getDocument, type Document } from '@/api/document'
+import {
+  createPdfDocument,
+  createTextDocument,
+  getDocument,
+  type Document,
+} from '@/api/document'
 import {
   createParseJob,
   getParseJob,
@@ -25,6 +30,13 @@ export const useParseStore = defineStore('parse', () => {
 
   async function createFromText(title: string, text: string) {
     const document = await createTextDocument({ title, text })
+    const job = await createParseJob({ document_id: document.id })
+    currentJob.value = job
+    return job
+  }
+
+  async function createFromPdf(file: File, title?: string) {
+    const document = await createPdfDocument({ file, title })
     const job = await createParseJob({ document_id: document.id })
     currentJob.value = job
     return job
@@ -72,6 +84,7 @@ export const useParseStore = defineStore('parse', () => {
     currentResult,
     sourceDocument,
     createFromText,
+    createFromPdf,
     fetchJob,
     retryJob,
     loadResult,

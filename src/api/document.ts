@@ -32,6 +32,18 @@ export function createTextDocument(
   return http.post<Document>('/documents/text', params)
 }
 
+// 上传 PDF 文档：multipart 表单，file 必填，title 可选
+export function createPdfDocument(
+  params: { file: File; title?: string },
+): Promise<Document> {
+  const formData = new FormData()
+  formData.append('file', params.file)
+  if (params.title) formData.append('title', params.title)
+  return http.post<Document>('/documents/pdf', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+}
+
 export function getDocument(documentId: number): Promise<Document> {
   return http.get<Document>(`/documents/${documentId}`)
 }
