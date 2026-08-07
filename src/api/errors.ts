@@ -33,10 +33,23 @@ export class SessionExpiredError extends ApiError {
   }
 }
 
+export class RequestCanceledError extends Error {
+  constructor(message = '请求已取消') {
+    super(message)
+    this.name = 'RequestCanceledError'
+  }
+}
+
 export function isApiError(error: unknown): error is ApiError {
   return error instanceof ApiError
 }
 
 export function isSessionExpired(error: unknown): error is SessionExpiredError {
   return error instanceof SessionExpiredError
+}
+
+export function isRequestCanceled(
+  error: unknown,
+): error is RequestCanceledError {
+  return error instanceof RequestCanceledError
 }

@@ -19,7 +19,7 @@ TaskPilot 的产品目标是把"要求文档"转换成可执行的结构化任�
 核心主链路已全部闭环并接入真实接口：
 
 - 账号体系：登录 / 注册 / Token 持久化 / 会话恢复 / 401 无感刷新 / 登出
-- 文档解析链路：文本录入 → 创建解析任务 → 轮询处理状态 → 编辑 / 确认解析结果
+- 文档解析链路：文本粘贴 / PDF 上传 → 创建解析任务 → 轮询处理状态 → 编辑 / 确认解析结果
 - 项目与任务：解析结果保存为项目 → 项目任务看板（新增 / 编辑 / 删除 / 状态流转 / 排序）→ 归档 / 恢复 / 逻辑删除
 - 工作台、解析记录（历史）与个人中心均已接入真实接口
 
@@ -100,20 +100,20 @@ taskpilot-web/
 
 ## 当前路由
 
-| 路由                          | 页面                        | 说明                                        |
-| ----------------------------- | --------------------------- | ------------------------------------------- |
-| `/login`                      | `LoginView.vue`             | 登录页                                      |
-| `/register`                   | `RegisterView.vue`          | 注册页                                      |
-| `/`                           | 重定向                      | 跳转 `/dashboard`                           |
-| `/dashboard`                  | `DashboardView.vue`         | 工作台首页                                  |
-| `/parse/new`                  | `ParseNew.vue`              | 文本录入并创建解析任务                      |
-| `/parse/:jobId/processing`    | `ParseProcessing.vue`       | 轮询解析任务状态                            |
-| `/parse/:jobId/result`        | `ParseResult.vue`           | 编辑、确认解析结果并保存为项目              |
-| `/projects`                   | `ProjectListView.vue`       | 进行中 / 已归档 / 已删除项目列表            |
-| `/projects/:projectId`        | `ProjectDetailView.vue`     | 项目任务看板及任务状态更新                  |
-| `/parses`（alias `/history`） | `HistoryView.vue`           | 解析记录与历史项目                          |
-| `/profile`                    | `ProfileView.vue`           | 个人中心                                    |
-| `*`                           | `NotFoundView.vue`          | 404 页面                                    |
+| 路由                          | 页面                    | 说明                              |
+| ----------------------------- | ----------------------- | --------------------------------- |
+| `/login`                      | `LoginView.vue`         | 登录页                            |
+| `/register`                   | `RegisterView.vue`      | 注册页                            |
+| `/`                           | 重定向                  | 跳转 `/dashboard`                 |
+| `/dashboard`                  | `DashboardView.vue`     | 工作台首页                        |
+| `/parse/new`                  | `ParseNew.vue`          | 文本粘贴或 PDF 上传并创建解析任务 |
+| `/parse/:jobId/processing`    | `ParseProcessing.vue`   | 轮询解析任务状态                  |
+| `/parse/:jobId/result`        | `ParseResult.vue`       | 编辑、确认解析结果并保存为项目    |
+| `/projects`                   | `ProjectListView.vue`   | 进行中 / 已归档 / 已删除项目列表  |
+| `/projects/:projectId`        | `ProjectDetailView.vue` | 项目任务看板及任务状态更新        |
+| `/parses`（alias `/history`） | `HistoryView.vue`       | 解析记录与历史项目                |
+| `/profile`                    | `ProfileView.vue`       | 个人中心                          |
+| `*`                           | `NotFoundView.vue`      | 404 页面                          |
 
 页面标题、描述与导航归属统一写在路由 `meta` 中，由 `WorkspaceTopbar` 与导航组件读取渲染，页面组件内不重复渲染 `<h1>` 或页面描述。
 
@@ -139,7 +139,8 @@ taskpilot-web/
 
 ### 3. 文档解析链路
 
-- 文本录入（标题 + 正文表单校验），创建文档并生成解析任务
+- 文本粘贴或 10MB 内文字型 PDF 上传，支持文件签名校验、上传进度、取消与分阶段重试
+- PDF 同步提取成功后创建解析任务；建任务失败时复用已保存文档并恢复已有任务，避免重复上传
 - 处理中页 3 秒轮询任务状态，支持失败分类提示与原地重试
 - 解析结果页：原文预览 + 交付物 / 关键要求 / 风险提醒 / AI 任务建议清单编辑，乐观锁保存，幂等确认
 - 结果确认后支持"保存为项目"（幂等，重复请求返回已有项目并跳转详情）
@@ -165,7 +166,7 @@ taskpilot-web/
 
 - `POST /api/v1/auth/register`、`POST /api/v1/auth/login`、`POST /api/v1/auth/refresh`、`POST /api/v1/auth/logout`
 - `GET /api/v1/users/me`、`PUT /api/v1/users/me`
-- `POST /api/v1/documents/text`、`GET /api/v1/documents/:documentId`
+- `POST /api/v1/documents/text`、`POST /api/v1/documents/pdf`、`GET /api/v1/documents/:documentId`
 - `POST /api/v1/parse-jobs`、`GET /api/v1/parse-jobs/:jobId`、`POST /api/v1/parse-jobs/:jobId/retry`
 - `GET /api/v1/parse-jobs/:jobId/result`、`GET /api/v1/parse-results/:resultId`、`PUT /api/v1/parse-results/:resultId`、`POST /api/v1/parse-results/:resultId/confirm`
 - `POST /api/v1/projects`、`GET /api/v1/projects`、`GET /api/v1/projects/:projectId`、`PUT /api/v1/projects/:projectId`

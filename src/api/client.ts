@@ -6,7 +6,7 @@ import axios, {
 } from 'axios'
 import { ElMessage } from 'element-plus'
 import { getToken, setToken, getCsrfToken } from '@/utils/storage'
-import { ApiError, SessionExpiredError } from './errors'
+import { ApiError, RequestCanceledError, SessionExpiredError } from './errors'
 
 // 后端统一响应信封：{ code, message, data }
 export interface Envelope<T> {
@@ -95,6 +95,10 @@ request.interceptors.response.use(
     return response
   },
   async (error: AxiosError<Envelope<unknown>>) => {
+    if (axios.isCancel(error)) {
+      return Promise.reject(new RequestCanceledError())
+    }
+
     const status = error.response?.status
     const original = error.config as
       (InternalAxiosRequestConfig & { _retried?: boolean }) | undefined

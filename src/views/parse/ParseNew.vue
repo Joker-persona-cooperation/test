@@ -10,17 +10,28 @@ import {
   type FormInstance,
   type FormRules,
   type UploadFile,
-  type UploadFiles,
+  type UploadRawFile,
   type UploadUserFile,
 } from 'element-plus'
 import { UploadFilled } from '@element-plus/icons-vue'
 import { useParseStore } from '@/stores/parse'
+import { MAX_PDF_PAGES, usePdfSubmission } from './composables/usePdfSubmission'
 
 const router = useRouter()
 const parseStore = useParseStore()
+const pdfSubmission = usePdfSubmission()
+const {
+  state: pdfState,
+  isBusy: pdfBusy,
+  canRetry: canRetryPdf,
+  statusText: pdfStatusText,
+} = pdfSubmission
 
 const formRef = ref<FormInstance>()
-const submitting = ref(false)
+const textSubmitting = ref(false)
+const submitting = computed(
+  () => textSubmitting.value || pdfSubmission.isBusy.value,
+)
 const contentLength = computed(() => form.content.length)
 
 const form = reactive({
@@ -28,12 +39,26 @@ const form = reactive({
   content: '',
 })
 
-// PDF 导入：单文件、拖拽选择，选中后无需再填文本
-const MAX_PDF_SIZE = 20 * 1024 * 1024 // 20MB
-const pdfFile = ref<File | null>(null)
+// PDF 导入：单文件、拖拽选择，选中后无需再填文本。
+// 上传、提取、建任务的状态与恢复逻辑由页面私有 composable 持有。
+const MAX_TEXT_CHARS = 50000 // 对齐 types.MaxTextDocumentChars / Upload.MaxTextChars
+const pdfFile = computed(() => pdfSubmission.state.file)
 const pdfFileList = ref<UploadUserFile[]>([])
 const pdfName = computed(() =>
-  pdfFile.value ? `${pdfFile.value.name}（${formatSize(pdfFile.value.size)}）` : '',
+  pdfFile.value
+    ? `${pdfFile.value.name}（${formatSize(pdfFile.value.size)}）`
+    : '',
+)
+
+const progressPercentage = computed(() =>
+  pdfSubmission.state.phase === 'uploading'
+    ? pdfSubmission.state.progress
+    : 100,
+)
+const progressIndeterminate = computed(
+  () =>
+    pdfSubmission.state.phase === 'serverProcessing' ||
+    pdfSubmission.state.phase === 'creatingJob',
 )
 
 function formatSize(size: number) {
@@ -53,10 +78,17 @@ const rules: FormRules = {
         // 已导入 PDF 时文本非必填
         if (pdfFile.value) return callback()
         if (!value || !value.trim()) {
-          return callback(new Error('请输入需要解析的文档内容，或导入 PDF 文件'))
+          return callback(
+            new Error('请输入需要解析的文档内容，或导入 PDF 文件'),
+          )
         }
         if (value.trim().length < 20) {
           return callback(new Error('内容过短，建议至少 20 个字符以便解析'))
+        }
+        if (value.trim().length > MAX_TEXT_CHARS) {
+          return callback(
+            new Error(`内容不能超过 ${MAX_TEXT_CHARS} 个字符，请精简后重试`),
+          )
         }
         callback()
       },
@@ -65,55 +97,74 @@ const rules: FormRules = {
   ],
 }
 
-function handlePdfChange(uploadFile: UploadFile, uploadFiles: UploadFiles) {
+async function handlePdfChange(uploadFile: UploadFile) {
   const raw = uploadFile.raw
-  // 校验类型与大小，不合规则则清空列表
-  if (!raw || (!raw.type.includes('pdf') && !raw.name.toLowerCase().endsWith('.pdf'))) {
-    ElMessage.error('仅支持导入 PDF 文件')
+  if (!raw) return
+  const accepted = await pdfSubmission.selectFile(raw)
+  if (!accepted) {
     pdfFileList.value = []
-    pdfFile.value = null
+    if (pdfSubmission.state.errorMessage) {
+      ElMessage.error(pdfSubmission.state.errorMessage)
+    }
     return
   }
-  if (raw.size > MAX_PDF_SIZE) {
-    ElMessage.error('PDF 文件不能超过 20MB')
-    pdfFileList.value = []
-    pdfFile.value = null
-    return
-  }
-  pdfFile.value = raw
-  pdfFileList.value = uploadFiles.slice(-1)
-  // 标题为空时用文件名作为默认标题
-  if (!form.title.trim()) {
-    form.title = raw.name.replace(/\.pdf$/i, '')
-  }
+  pdfFileList.value = [
+    { name: raw.name, status: 'ready', raw, uid: uploadFile.uid },
+  ]
+  if (!form.title.trim()) form.title = raw.name.replace(/\.pdf$/i, '')
 }
 
 function handlePdfRemove() {
-  pdfFile.value = null
+  pdfSubmission.clearFile()
   pdfFileList.value = []
 }
 
-function handlePdfExceed(files: UploadFile[]) {
-  pdfFileList.value = [files[files.length - 1]]
-  pdfFile.value = files[files.length - 1].raw ?? null
+async function handlePdfExceed(files: File[]) {
+  const latest = files[files.length - 1]
+  if (!latest) return
+  const accepted = await pdfSubmission.selectFile(latest)
+  if (!accepted) {
+    pdfFileList.value = []
+    ElMessage.error(pdfSubmission.state.errorMessage)
+    return
+  }
+  const raw = latest as UploadRawFile
+  pdfFileList.value = [{ name: raw.name, status: 'ready', raw, uid: raw.uid }]
+  if (!form.title.trim()) form.title = raw.name.replace(/\.pdf$/i, '')
   ElMessage.warning('一次只能导入一个 PDF，已替换为最新选择的文件')
 }
 
 async function handleSubmit() {
+  if (submitting.value) return
   const valid = await formRef.value?.validate().catch(() => false)
   if (!valid) return
-  submitting.value = true
-  try {
-    const job = pdfFile.value
-      ? await parseStore.createFromPdf(pdfFile.value, form.title.trim() || undefined)
-      : await parseStore.createFromText(form.title.trim(), form.content)
+
+  if (pdfFile.value) {
+    const job = await pdfSubmission.submit(form.title.trim() || undefined)
+    if (!job) return
     ElMessage.success('已提交解析，正在处理中')
-    router.replace(`/parse/${job.id}/processing`)
-  } catch {
-    // 请求层已统一提示错误，这里只负责结束流程
-  } finally {
-    submitting.value = false
+    await router.replace(`/parse/${job.id}/processing`)
+    return
   }
+
+  textSubmitting.value = true
+  try {
+    const job = await parseStore.createFromText(form.title.trim(), form.content)
+    ElMessage.success('已提交解析，正在处理中')
+    await router.replace(`/parse/${job.id}/processing`)
+  } catch {
+    // 请求层已统一提示错误
+  } finally {
+    textSubmitting.value = false
+  }
+}
+
+function handleCancel() {
+  if (pdfSubmission.isBusy.value) {
+    pdfSubmission.cancel()
+    return
+  }
+  void router.push('/dashboard')
 }
 
 interface ExampleTemplate {
@@ -195,6 +246,7 @@ function fillExample() {
           <el-upload
             class="parse-new__pdf"
             drag
+            :disabled="pdfBusy"
             accept="application/pdf,.pdf"
             :auto-upload="false"
             :limit="1"
@@ -204,10 +256,13 @@ function fillExample() {
             :on-exceed="handlePdfExceed"
           >
             <el-icon class="parse-new__pdf-icon"><UploadFilled /></el-icon>
-            <div class="el-upload__text">拖拽 PDF 到此处，或 <em>点击选择文件</em></div>
+            <div class="el-upload__text">
+              拖拽 PDF 到此处，或 <em>点击选择文件</em>
+            </div>
             <template #tip>
               <div class="el-upload__tip">
-                支持 .pdf 格式，单个文件不超过 20MB；导入后标题自动取文件名，可不填下方文本
+                支持 .pdf 格式，单个文件不超过 10MB、不超过
+                {{ MAX_PDF_PAGES }} 页；导入后标题自动取文件名，可不填下方文本
               </div>
             </template>
           </el-upload>
@@ -229,16 +284,41 @@ function fillExample() {
             resize="none"
           />
           <div class="parse-new__content-meta">
-            <span>{{ pdfFile ? `已导入 ${pdfName}` : `${contentLength} 字` }}</span>
+            <span>{{
+              pdfFile ? `已导入 ${pdfName}` : `${contentLength} 字`
+            }}</span>
             <el-button v-if="!pdfFile" link type="primary" @click="fillExample">
               填充示例（{{ exampleTemplates.length }} 选 1）
             </el-button>
           </div>
         </el-form-item>
+        <div
+          v-if="pdfBusy"
+          class="parse-new__progress"
+          role="status"
+          aria-live="polite"
+        >
+          <el-progress
+            class="parse-new__progress-bar"
+            :percentage="progressPercentage"
+            :indeterminate="progressIndeterminate"
+            :duration="2"
+            :show-text="false"
+          />
+          <span class="parse-new__progress-text">{{ pdfStatusText }}</span>
+        </div>
+        <el-alert
+          v-if="pdfState.phase === 'failed' || pdfState.phase === 'cancelled'"
+          class="parse-new__feedback"
+          :type="pdfState.phase === 'failed' ? 'error' : 'info'"
+          :title="pdfStatusText"
+          :closable="false"
+          show-icon
+        />
         <el-form-item>
           <div class="parse-new__actions">
-            <el-button size="large" @click="router.push('/dashboard')">
-              取消
+            <el-button size="large" @click="handleCancel">
+              {{ pdfBusy ? '取消提交' : '取消' }}
             </el-button>
             <el-button
               class="parse-new__submit"
@@ -246,9 +326,11 @@ function fillExample() {
               size="large"
               native-type="submit"
               :loading="submitting"
-              :disabled="!form.content && !pdfFile"
+              :disabled="(!form.content && !pdfFile) || submitting"
             >
-              {{ submitting ? '提交中...' : '提交解析' }}
+              {{
+                submitting ? '提交中...' : canRetryPdf ? '重新提交' : '提交解析'
+              }}
             </el-button>
           </div>
         </el-form-item>
@@ -290,6 +372,28 @@ function fillExample() {
     display: flex;
     justify-content: flex-end;
     gap: 12px;
+  }
+
+  &__progress {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+
+    &-bar {
+      flex: 1;
+    }
+
+    &-text {
+      flex-shrink: 0;
+      font-size: 12px;
+      color: var(--color-text-soft);
+    }
+  }
+
+  &__feedback {
+    margin-bottom: 16px;
   }
 
   &__submit {

@@ -8,6 +8,7 @@ import {
 } from '@/api/document'
 import {
   createParseJob,
+  getLatestParseJob,
   getParseJob,
   getParseJobResult,
   retryParseJob,
@@ -35,9 +36,36 @@ export const useParseStore = defineStore('parse', () => {
     return job
   }
 
-  async function createFromPdf(file: File, title?: string) {
-    const document = await createPdfDocument({ file, title })
-    const job = await createParseJob({ document_id: document.id })
+  async function uploadPdfDocument(
+    file: File,
+    title?: string,
+    signal?: AbortSignal,
+    onProgress?: (percent: number) => void,
+  ) {
+    const document = await createPdfDocument({
+      file,
+      title,
+      signal,
+      onProgress,
+    })
+    sourceDocument.value = document
+    return document
+  }
+
+  async function createJobForDocument(
+    documentId: number,
+    signal?: AbortSignal,
+  ) {
+    const job = await createParseJob({ document_id: documentId }, signal)
+    currentJob.value = job
+    return job
+  }
+
+  async function loadLatestJobForDocument(
+    documentId: number,
+    signal?: AbortSignal,
+  ) {
+    const job = await getLatestParseJob(documentId, signal)
     currentJob.value = job
     return job
   }
@@ -84,7 +112,9 @@ export const useParseStore = defineStore('parse', () => {
     currentResult,
     sourceDocument,
     createFromText,
-    createFromPdf,
+    uploadPdfDocument,
+    createJobForDocument,
+    loadLatestJobForDocument,
     fetchJob,
     retryJob,
     loadResult,

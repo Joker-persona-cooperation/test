@@ -11,18 +11,9 @@ const vendorChunkGroups = [
     priority: 30,
   },
   {
-    name: 'element-plus',
-    test: /node_modules[\\/]element-plus(?:[\\/]|$)/,
-    priority: 20,
-  },
-  {
     name: 'axios',
     test: /node_modules[\\/]axios(?:[\\/]|$)/,
     priority: 10,
-  },
-  {
-    name: 'vendor',
-    test: /node_modules[\\/]/,
   },
 ]
 

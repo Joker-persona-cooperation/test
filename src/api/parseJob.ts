@@ -60,8 +60,16 @@ export interface ParseResult {
 // 第二步：创建解析任务，拿到 jobId
 export function createParseJob(
   params: CreateParseJobParams,
+  signal?: AbortSignal,
 ): Promise<ParseJob> {
-  return http.post<ParseJob>('/parse-jobs', params)
+  return http.post<ParseJob>('/parse-jobs', params, { signal })
+}
+
+export function getLatestParseJob(
+  documentId: number,
+  signal?: AbortSignal,
+): Promise<ParseJob> {
+  return http.get<ParseJob>(`/documents/${documentId}/latest-job`, { signal })
 }
 
 // 第三步：轮询解析任务状态

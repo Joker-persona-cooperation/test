@@ -33,14 +33,24 @@ export function createTextDocument(
 }
 
 // 上传 PDF 文档：multipart 表单，file 必填，title 可选
-export function createPdfDocument(
-  params: { file: File; title?: string },
-): Promise<Document> {
+// onProgress 回调上传进度百分比（0-100），便于界面展示进度条
+export function createPdfDocument(params: {
+  file: File
+  title?: string
+  signal?: AbortSignal
+  onProgress?: (percent: number) => void
+}): Promise<Document> {
   const formData = new FormData()
   formData.append('file', params.file)
   if (params.title) formData.append('title', params.title)
   return http.post<Document>('/documents/pdf', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
+    signal: params.signal,
+    // 上传 + 后端同步提取文本（最多 15s）耗时较长，单独放宽超时
+    timeout: 60_000,
+    onUploadProgress: (e) => {
+      if (!e.total) return
+      params.onProgress?.(Math.min(100, Math.round((e.loaded / e.total) * 100)))
+    },
   })
 }
 
