@@ -61,7 +61,7 @@
 | 方法   | 路径                     | 请求约束                             | 成功 `data`    | 前端封装             |
 | ------ | ------------------------ | ------------------------------------ | -------------- | -------------------- |
 | POST   | `/documents/text`        | JSON：`title`、`text` 均必填         | `Document`     | `createTextDocument` |
-| POST   | `/documents/pdf`         | multipart：`file` 必填，`title` 可选 | `Document`     | 尚未封装             |
+| POST   | `/documents/pdf`         | multipart：`file` 必填，`title` 可选 | `Document`     | `createPdfDocument`  |
 | GET    | `/documents`             | query：`page`、`page_size` 可选      | `DocumentList` | 尚未封装             |
 | GET    | `/documents/:documentId` | 无                                   | `Document`     | `getDocument`        |
 | DELETE | `/documents/:documentId` | 无                                   | `{}`           | 尚未封装             |
@@ -74,6 +74,7 @@
 
 - `title` 必填，最多 255 个 Unicode 字符；后端不会根据正文自动生成标题。
 - `text` 必填，最多 50,000 个 Unicode 字符；JSON 请求体最大 256 KiB。
+- PDF 最大 10 MiB、50 页，必须包含可提取文字且不能加密；前端展示上传进度，上传完成后的同步提取阶段不提供百分比。
 - `Document` 必定返回 `id`、`source_type`、`status`、`created_at`、`updated_at`。
 - `title`、`file_name`、`file_url`、`page_count`、`file_size`、`content` 无值时可能省略。
 - 列表 `data` 固定为 `{ items, page, page_size, total }`，列表项不包含 `content`。
@@ -84,8 +85,8 @@
 | ---- | ----------------------------------- | -------------------------- | ------------- | ------------------- |
 | POST | `/parse-jobs`                       | `document_id` 必填且大于 0 | `ParseJob`    | `createParseJob`    |
 | GET  | `/parse-jobs/:jobId`                | 无                         | `ParseJob`    | `getParseJob`       |
-| POST | `/parse-jobs/:jobId/retry`          | 无 JSON Body               | `ParseJob`    | 尚未封装            |
-| GET  | `/documents/:documentId/latest-job` | 无                         | `ParseJob`    | 尚未封装            |
+| POST | `/parse-jobs/:jobId/retry`          | 无 JSON Body               | `ParseJob`    | `retryParseJob`     |
+| GET  | `/documents/:documentId/latest-job` | 无                         | `ParseJob`    | `getLatestParseJob` |
 | GET  | `/parse-jobs/:jobId/result`         | 无                         | `ParseResult` | `getParseJobResult` |
 
 创建请求只允许：
