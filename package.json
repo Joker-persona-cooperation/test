@@ -5,6 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:local": "vite --mode development",
+    "dev:remote": "vite --mode remote",
+    "dev:pick": "node scripts/dev-pick.mjs",
     "build": "vue-tsc -b && vite build",
     "preview": "vite preview",
     "format": "prettier --write \"src/**/*.{ts,vue,scss,css,json}\""

@@ -8,18 +8,56 @@ import { useWorkspaceSidebar } from './composables/useWorkspaceSidebar'
 const { mobileNavOpen, closeMobileNav } = useWorkspaceSidebar()
 const router = useRouter()
 const contentEl = ref<HTMLElement>()
-const scrollPositions = new Map<string, number>()
+
+// 用 sessionStorage 持久化滚动位置：布局实例卸载重建（如退出登录再进入）
+// 后 Map 不丢失，仅本标签页有效，关闭标签自动清空。
+const STORAGE_KEY = 'taskpilot:scroll-positions'
+type ScrollMap = Record<string, number>
+
+function loadPositions(): ScrollMap {
+  try {
+    return JSON.parse(sessionStorage.getItem(STORAGE_KEY) || '{}') as ScrollMap
+  } catch {
+    return {}
+  }
+}
+
+function savePosition(path: string, top: number) {
+  const map = loadPositions()
+  map[path] = top
+  sessionStorage.setItem(STORAGE_KEY, JSON.stringify(map))
+}
+
+// 反复尝试 scrollTo 直到生效：绕开 out-in 过渡动画 + 列表/详情页异步
+// 数据加载（loading 空态会被误判为"高度稳定"）导致的"恢复过早"问题。
+// 不依赖任何业务组件配合——只要内容撑够高、scrollTop 能被设置成功即停止。
+function restoreWhenSettled(target: number) {
+  const el = contentEl.value
+  if (!el || target <= 0) {
+    el?.scrollTo({ top: target })
+    return
+  }
+  let frame = 0
+  const tick = () => {
+    el.scrollTo({ top: target })
+    // 实际滚动量已接近目标，说明内容高度足够、恢复成功
+    if (Math.abs(el.scrollTop - target) < 2) return
+    if (frame++ < 120) requestAnimationFrame(tick) // 最多约 2s，避免死循环
+  }
+  requestAnimationFrame(tick)
+}
 
 const removeBeforeGuard = router.beforeEach((_to, from) => {
   if (contentEl.value) {
-    scrollPositions.set(from.fullPath, contentEl.value.scrollTop)
+    savePosition(from.fullPath, contentEl.value.scrollTop)
   }
   return true
 })
 
 const removeAfterHook = router.afterEach(async (to) => {
   await nextTick()
-  contentEl.value?.scrollTo({ top: scrollPositions.get(to.fullPath) ?? 0 })
+  const target = loadPositions()[to.fullPath] ?? 0
+  restoreWhenSettled(target)
 })
 
 onBeforeUnmount(() => {

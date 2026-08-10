@@ -18,10 +18,23 @@ export function removeToken(): void {
 
 export function getUser<T = unknown>(): T | null {
   const raw = localStorage.getItem(USER_KEY)
-  return raw ? (JSON.parse(raw) as T) : null
+  if (!raw) return null
+  try {
+    return JSON.parse(raw) as T
+  } catch {
+    // 清理历史脏数据（如之前误写入的字符串 "undefined"），避免阻塞应用启动
+    localStorage.removeItem(USER_KEY)
+    return null
+  }
 }
 
 export function setUser(user: unknown): void {
+  // JSON.stringify(undefined) 返回 undefined，localStorage 会落成字符串
+  // "undefined"，导致下次读取时 JSON.parse 抛错，这里统一清理而不是写入。
+  if (user === undefined) {
+    removeUser()
+    return
+  }
   localStorage.setItem(USER_KEY, JSON.stringify(user))
 }
 
