@@ -32,7 +32,7 @@ sudo systemctl reload nginx
 | `WEB_DEPLOY_SSH_KEY` | 对应用户的私钥（完整 PEM/OpenSSH 内容） |
 | `WEB_DEPLOY_PATH` | `/www/wwwroot/dev.taskpilot.1kuansi.cn/taskpilot-web` |
 
-推送到 `main` 后，工作流会执行 `npm ci`、`npm run build`，上传 `dist`，并将 `current` 原子切换到新版本，同时保留最近 5 个发布版本。Pull Request 只执行构建，不会连接服务器。
+推送到 `main` 后，工作流会使用固定的 Node.js `22.23.1` 执行 `npm ci`、`npm run build`，上传 `dist`，并将 `current` 原子切换到新版本，同时保留最近 5 个发布版本。Pull Request 只执行构建，不会连接服务器。Node 版本直接写在工作流中，不依赖未提交的本地 `.node-version` 文件。
 
 ## 发布后验证
 
