@@ -7,7 +7,7 @@ import readline from 'node:readline/promises'
 
 const choices = [
   { name: '本地后端      http://127.0.0.1:8888', mode: 'development' },
-  { name: '服务器 dev    https://dev.taskpilot.1kuansi.cn', mode: 'remote' },
+  { name: '远程服务器    https://taskpilot.1kuansi.cn', mode: 'remote' },
 ]
 
 const rl = readline.createInterface({ input, output })

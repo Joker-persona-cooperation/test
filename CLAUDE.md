@@ -58,7 +58,7 @@ views / layouts  →  stores  →  api  →  utils / constants
 
 ### 开发代理为什么必须存在
 
-`.env.development` 里 `VITE_API_BASE_URL=/api/v1`，由 `vite.config.ts` 的 proxy 转发到 `https://dev.taskpilot.1kuansi.cn`。目的是让浏览器侧始终同源请求，否则 refresh/csrf Cookie 落入跨站场景，无感刷新链路会失效。不要为了「方便」把 dev 的 baseURL 改成远端绝对地址。生产环境走 `.env.production` 的绝对地址。
+`.env.development` 与 `.env.production` 都使用同源的 `VITE_API_BASE_URL=/api/v1`。本地由 Vite proxy 转发，远程由 Nginx 将 `/api/` 转发到 `https://taskpilot.1kuansi.cn` 上的后端。这样 refresh/csrf Cookie 始终处于同源链路。
 
 ### 会话引导：bootstrapSession（`src/stores/auth.ts` + `src/router/guards.ts`）
 
