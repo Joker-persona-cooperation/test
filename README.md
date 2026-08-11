@@ -190,10 +190,10 @@ VITE_API_BASE_URL=/api/v1
 `.env.production`
 
 ```bash
-VITE_API_BASE_URL=https://taskpilot.1kuansi.cn/api/v1
+VITE_API_BASE_URL=/api/v1
 ```
 
-开发环境下通过 Vite 代理转发 `/api`，避免浏览器侧跨站导致 Cookie 刷新链路失效。
+开发环境通过 Vite 代理转发 `/api`；部署环境由同一 Nginx 站点提供前端并将 `/api/` 代理到 Go 服务，浏览器始终同源，避免 Cookie 刷新链路进入跨站场景。
 
 ---
 
@@ -209,3 +209,19 @@ npm run dev
 ```bash
 npm run build
 ```
+
+## 自动部署
+
+`.github/workflows/deploy.yml` 在 Pull Request 上只构建，在 `main` push 构建成功后把 `dist` 上传到服务器，并原子切换 `/www/wwwroot/dev.taskpilot.1kuansi.cn/taskpilot-web/current` 软链接。服务器不需要安装 Node.js，也不需要在 Web 根目录执行 `git pull`。
+
+前端仓库需要配置以下 GitHub Actions Secrets：
+
+- `WEB_DEPLOY_HOST`
+- `WEB_DEPLOY_PORT`
+- `WEB_DEPLOY_USER`
+- `WEB_DEPLOY_SSH_KEY`
+- `WEB_DEPLOY_PATH`：`/www/wwwroot/dev.taskpilot.1kuansi.cn/taskpilot-web`
+
+首次部署前在服务器执行 `sudo mkdir -p /www/wwwroot/dev.taskpilot.1kuansi.cn/taskpilot-web/releases`，并把该目录所有权授予部署用户。将 `deploy/nginx.taskpilot.conf` 安装为 Nginx 站点配置，签发 `taskpilot.1kuansi.cn` 证书后执行 `sudo nginx -t && sudo systemctl reload nginx`。
+
+完整的首次准备、端口核对、发布后验证和回滚步骤见 [`docs/deployment.md`](docs/deployment.md)。
