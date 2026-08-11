@@ -25,12 +25,17 @@ const authStore = useAuthStore()
 const dashboardStore = useDashboardStore()
 const {
   loading,
+  error: loadError,
   stats: statsData,
   reminders,
   parseRecords,
 } = storeToRefs(dashboardStore)
 const router = useRouter()
 const greeting = useGreeting()
+
+function reloadDashboard() {
+  void dashboardStore.loadDashboard()
+}
 
 const displayName = computed(
   () => authStore.userInfo?.nickname || 'TaskPilot 用户',
@@ -93,18 +98,33 @@ function openReminder(reminder: DashboardReminder) {
       <strong>{{ reminders.length }}</strong> 个任务即将到期。
     </p>
 
-    <section class="dashboard__stats" aria-label="数据概览">
-      <AppStatCard
-        v-for="item in stats"
-        :key="item.label"
-        :label="item.label"
-        :value="item.value"
-        :icon="item.icon"
-        :tone="item.tone"
-      />
-    </section>
+    <el-result
+      v-if="loadError"
+      icon="error"
+      title="工作台数据加载失败"
+      :sub-title="loadError"
+      class="dashboard__error"
+    >
+      <template #extra>
+        <el-button type="primary" :loading="loading" @click="reloadDashboard">
+          重新加载
+        </el-button>
+      </template>
+    </el-result>
 
-    <div class="dashboard__grid">
+    <template v-else>
+      <section class="dashboard__stats" aria-label="数据概览">
+        <AppStatCard
+          v-for="item in stats"
+          :key="item.label"
+          :label="item.label"
+          :value="item.value"
+          :icon="item.icon"
+          :tone="item.tone"
+        />
+      </section>
+
+      <div class="dashboard__grid">
       <AppPanel title="最近解析记录" :icon="Clock">
         <template #extra>
           <el-button
@@ -220,7 +240,8 @@ function openReminder(reminder: DashboardReminder) {
         </ul>
         <p v-else class="dashboard__empty">暂无临近截止的任务。</p>
       </AppPanel>
-    </div>
+      </div>
+    </template>
   </div>
 </template>
 
@@ -244,6 +265,10 @@ function openReminder(reminder: DashboardReminder) {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 16px;
+  }
+
+  &__error {
+    padding: 24px 0;
   }
 
   &__grid {

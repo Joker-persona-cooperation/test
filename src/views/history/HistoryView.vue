@@ -23,9 +23,11 @@ const {
   parseResults,
   parseTotal,
   parseLoading,
+  parseError,
   projects,
   projectTotal,
   projectLoading,
+  projectError,
 } = storeToRefs(historyStore)
 const pageSize = 10
 
@@ -95,7 +97,21 @@ onMounted(loadActiveTab)
       <el-tab-pane label="解析记录" name="parse">
         <AppPanel title="解析记录">
           <div v-loading="parseLoading">
+            <el-result
+              v-if="parseError"
+              icon="error"
+              title="解析记录加载失败"
+              :sub-title="parseError"
+              class="history-page__error"
+            >
+              <template #extra>
+                <el-button type="primary" @click="loadActiveTab">
+                  重新加载
+                </el-button>
+              </template>
+            </el-result>
             <el-table
+              v-else
               :data="parseResults"
               class="history-page__table"
               style="width: 100%"
@@ -134,7 +150,7 @@ onMounted(loadActiveTab)
               </el-table-column>
             </el-table>
 
-            <div class="history-page__mobile-list">
+            <div v-if="!parseError" class="history-page__mobile-list">
               <button
                 v-for="result in parseResults"
                 :key="result.id"
@@ -163,7 +179,7 @@ onMounted(loadActiveTab)
             </div>
 
             <el-pagination
-              v-if="parseTotal > pageSize"
+              v-if="!parseError && parseTotal > pageSize"
               class="history-page__pager"
               :current-page="currentPage"
               :page-size="pageSize"
@@ -179,7 +195,21 @@ onMounted(loadActiveTab)
       <el-tab-pane label="项目记录" name="projects">
         <AppPanel title="项目记录">
           <div v-loading="projectLoading">
+            <el-result
+              v-if="projectError"
+              icon="error"
+              title="项目记录加载失败"
+              :sub-title="projectError"
+              class="history-page__error"
+            >
+              <template #extra>
+                <el-button type="primary" @click="loadActiveTab">
+                  重新加载
+                </el-button>
+              </template>
+            </el-result>
             <el-table
+              v-else
               :data="projects"
               class="history-page__table"
               style="width: 100%"
@@ -218,7 +248,7 @@ onMounted(loadActiveTab)
               </el-table-column>
             </el-table>
 
-            <div class="history-page__mobile-list">
+            <div v-if="!projectError" class="history-page__mobile-list">
               <button
                 v-for="project in projects"
                 :key="project.id"
@@ -247,7 +277,7 @@ onMounted(loadActiveTab)
             </div>
 
             <el-pagination
-              v-if="projectTotal > pageSize"
+              v-if="!projectError && projectTotal > pageSize"
               class="history-page__pager"
               :current-page="currentPage"
               :page-size="pageSize"
@@ -277,6 +307,10 @@ onMounted(loadActiveTab)
     padding: 8px 0;
     color: var(--color-text-soft);
     font-size: 13px;
+  }
+
+  &__error {
+    padding: 12px 0;
   }
 
   &__pager {
