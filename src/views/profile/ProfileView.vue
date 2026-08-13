@@ -29,6 +29,10 @@ async function loadProfile() {
   loading.value = true
   try {
     await authStore.fetchProfile()
+  } catch (loadErr) {
+    ElMessage.error(
+      loadErr instanceof Error ? loadErr.message : '个人资料加载失败',
+    )
   } finally {
     loading.value = false
   }
