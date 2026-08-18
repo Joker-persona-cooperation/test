@@ -36,7 +36,10 @@ export const routes: RouteRecordRaw[] = [
         meta: {
           title: '新建解析',
           description: '粘贴任务文档，由 AI 自动拆解任务目标与执行清单。',
-          breadcrumb: [{ label: '工作台', name: 'dashboard' }, { label: '新建解析' }],
+          breadcrumb: [
+            { label: '工作台', name: 'dashboard' },
+            { label: '新建解析' },
+          ],
         },
       },
       {
@@ -46,7 +49,10 @@ export const routes: RouteRecordRaw[] = [
         meta: {
           title: '解析处理中',
           description: '查看文档解析任务的实时处理状态。',
-          breadcrumb: [{ label: '工作台', name: 'dashboard' }, { label: '解析处理中' }],
+          breadcrumb: [
+            { label: '工作台', name: 'dashboard' },
+            { label: '解析处理中' },
+          ],
         },
       },
       {

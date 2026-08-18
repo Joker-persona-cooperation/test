@@ -688,9 +688,7 @@ onMounted(() => {
               >
                 <div class="task-card-head">
                   <h3>{{ entry.task.title }}</h3>
-                  <span v-if="!readonly" class="drag-hint"
-                    >拖拽可跨列排序</span
-                  >
+                  <span v-if="!readonly" class="drag-hint">拖拽可跨列排序</span>
                 </div>
                 <p v-if="entry.task.description">
                   {{ entry.task.description }}

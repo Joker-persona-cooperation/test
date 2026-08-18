@@ -22,6 +22,7 @@ TaskPilot 的产品目标是把"要求文档"转换成可执行的结构化任�
 - 文档解析链路：文本粘贴 / PDF 上传 → 创建解析任务 → 轮询处理状态 → 编辑 / 确认解析结果
 - 项目与任务：解析结果保存为项目 → 项目任务看板（新增 / 编辑 / 删除 / 状态流转 / 排序）→ 归档 / 恢复 / 逻辑删除
 - 工作台、解析记录（历史）与个人中心均已接入真实接口
+- 解析结果 AI 答疑：Fetch Streams 解析 SSE 增量、页面内多轮上下文、停止生成与失败重试
 
 工程约束：仓库没有测试框架、也没有 ESLint，`npm run build`（`vue-tsc -b` 类型检查）是唯一的静态校验手段，改完代码用它验证。分层边界靠 `CLAUDE.md` 的约定人工守。
 
@@ -49,6 +50,7 @@ taskpilot-web/
 ├── src/
 │   ├── api/                     # 请求层：client.ts 为 axios 实例（信封剥离/无感刷新/CSRF），其余按后端资源拆分
 │   │   ├── auth.ts
+│   │   ├── aiChat.ts            # AI 答疑 Fetch + SSE 流式请求
 │   │   ├── client.ts
 │   │   ├── dashboard.ts         # 工作台接口与类型契约
 │   │   ├── document.ts          # 文档接口与类型契约
@@ -69,7 +71,7 @@ taskpilot-web/
 │   ├── stores/                  # 领域 store：auth / parse / project / dashboard / history
 │   ├── styles/                  # 全局样式与主题变量（variables.scss、auth.scss）
 │   ├── types/                   # 全局类型增强（RouteMeta 等）
-│   ├── utils/                   # storage、date 等叶子工具
+│   ├── utils/                   # storage、date、SSE 分帧等叶子工具
 │   ├── views/                   # 页面级组件，按业务域垂直切分
 │   │   ├── auth/                # 登录、注册
 │   │   ├── dashboard/           # 工作台首页

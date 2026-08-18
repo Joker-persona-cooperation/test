@@ -24,11 +24,7 @@ function handleClick(item: BreadcrumbItem, index: number) {
 </script>
 
 <template>
-  <nav
-    v-if="items.length"
-    class="workspace-breadcrumb"
-    aria-label="面包屑导航"
-  >
+  <nav v-if="items.length" class="workspace-breadcrumb" aria-label="面包屑导航">
     <template v-for="(item, index) in items" :key="index">
       <button
         v-if="index < items.length - 1"
