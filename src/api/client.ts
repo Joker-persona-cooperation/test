@@ -29,7 +29,7 @@ export function setSessionExpiredHandler(handler: SessionExpiredHandler) {
   onSessionExpired = handler
 }
 
-function notifySessionExpired(error: SessionExpiredError) {
+export function notifySessionExpired(error: SessionExpiredError) {
   onSessionExpired?.(error)
   return error
 }
@@ -54,20 +54,8 @@ request.interceptors.request.use((config) => {
 })
 
 // 无感刷新：受保护接口 401 时用 refresh cookie 换新 access token 并重试，
-// 并发 401 只刷新一次，其余请求排队等待结果
-let isRefreshing = false
-let pendingQueue: Array<{
-  resolve: (token: string) => void
-  reject: (err: unknown) => void
-}> = []
-
-function flushQueue(token: string | null, err: unknown | null) {
-  pendingQueue.forEach((p) => {
-    if (token) p.resolve(token)
-    else p.reject(err)
-  })
-  pendingQueue = []
-}
+// 并发 401 共享同一个 refresh Promise，避免重复轮换 refresh token
+let refreshPromise: Promise<string> | null = null
 
 async function doRefresh(): Promise<string> {
   // 用原始实例发起 refresh，避免再走响应拦截的 401 刷新逻辑造成循环
@@ -79,6 +67,14 @@ async function doRefresh(): Promise<string> {
   if (!token) throw new Error('刷新会话失败')
   setToken(token)
   return token
+}
+
+export function refreshAccessToken(): Promise<string> {
+  if (refreshPromise) return refreshPromise
+  refreshPromise = doRefresh().finally(() => {
+    refreshPromise = null
+  })
+  return refreshPromise
 }
 
 // 响应拦截：统一处理业务码与 401 无感刷新
@@ -122,32 +118,13 @@ request.interceptors.response.use(
     if (status === 401 && original && !original._retried) {
       original._retried = true
 
-      // 已有刷新在进行：挂到队列等待新 token
-      if (isRefreshing) {
-        return new Promise((resolve, reject) => {
-          pendingQueue.push({
-            resolve: (token: string) => {
-              original.headers.Authorization = `Bearer ${token}`
-              resolve(request(original))
-            },
-            reject,
-          })
-        })
-      }
-
-      isRefreshing = true
       try {
-        const newToken = await doRefresh()
-        flushQueue(newToken, null)
+        const newToken = await refreshAccessToken()
         original.headers.Authorization = `Bearer ${newToken}`
         return request(original)
       } catch {
-        // refresh 失败：唤醒排队请求让它们一起失败，再通知上层清会话
         const expired = new SessionExpiredError()
-        flushQueue(null, expired)
         return Promise.reject(notifySessionExpired(expired))
-      } finally {
-        isRefreshing = false
       }
     }
 

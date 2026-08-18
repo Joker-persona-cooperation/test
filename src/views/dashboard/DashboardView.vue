@@ -125,121 +125,127 @@ function openReminder(reminder: DashboardReminder) {
       </section>
 
       <div class="dashboard__grid">
-      <AppPanel title="最近解析记录" :icon="Clock">
-        <template #extra>
-          <el-button
-            text
-            type="primary"
-            @click="router.push({ name: 'parse-records' })"
-          >
-            查看全部
-          </el-button>
-        </template>
+        <AppPanel title="最近解析记录" :icon="Clock">
+          <template #extra>
+            <el-button
+              text
+              type="primary"
+              @click="router.push({ name: 'parse-records' })"
+            >
+              查看全部
+            </el-button>
+          </template>
 
-        <el-table
-          v-loading="loading"
-          :data="parseRecords"
-          class="dashboard__records-table"
-          style="width: 100%"
-        >
-          <template #empty>
-            <p class="dashboard__empty">
+          <el-table
+            v-loading="loading"
+            :data="parseRecords"
+            class="dashboard__records-table"
+            style="width: 100%"
+          >
+            <template #empty>
+              <p class="dashboard__empty">
+                还没有解析记录，先去新建一个解析任务吧。
+              </p>
+            </template>
+            <el-table-column label="标题" min-width="220">
+              <template #default="{ row }: { row: DashboardParseRecord }">
+                <button
+                  class="dashboard__record-link"
+                  type="button"
+                  @click="openRecord(row)"
+                >
+                  {{ row.title }}
+                </button>
+              </template>
+            </el-table-column>
+            <el-table-column label="确认状态" width="110">
+              <template #default="{ row }: { row: DashboardParseRecord }">
+                <el-tag
+                  size="small"
+                  :type="row.confirmed ? 'success' : 'warning'"
+                  effect="plain"
+                >
+                  {{ row.confirmed ? '已确认' : '待确认' }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column
+              label="创建时间"
+              width="160"
+              prop="createdAt"
+              align="right"
+            />
+          </el-table>
+
+          <div v-loading="loading" class="dashboard__records-mobile">
+            <button
+              v-for="record in parseRecords.slice(0, 3)"
+              :key="record.resultId"
+              type="button"
+              class="record-card"
+              @click="openRecord(record)"
+            >
+              <span class="record-card__title">{{ record.title }}</span>
+              <span class="record-card__meta">
+                <el-tag
+                  size="small"
+                  :type="record.confirmed ? 'success' : 'warning'"
+                  effect="plain"
+                >
+                  {{ record.confirmed ? '已确认' : '待确认' }}
+                </el-tag>
+                {{ record.createdAt }}
+              </span>
+            </button>
+            <p v-if="!loading && !parseRecords.length" class="dashboard__empty">
               还没有解析记录，先去新建一个解析任务吧。
             </p>
+          </div>
+        </AppPanel>
+
+        <AppPanel title="近期提醒" :icon="Bell">
+          <template #extra>
+            <el-tag
+              v-if="urgentCount"
+              size="small"
+              type="danger"
+              effect="plain"
+            >
+              紧急 {{ urgentCount }}
+            </el-tag>
           </template>
-          <el-table-column label="标题" min-width="220">
-            <template #default="{ row }: { row: DashboardParseRecord }">
-              <button
-                class="dashboard__record-link"
-                type="button"
-                @click="openRecord(row)"
-              >
-                {{ row.title }}
-              </button>
-            </template>
-          </el-table-column>
-          <el-table-column label="确认状态" width="110">
-            <template #default="{ row }: { row: DashboardParseRecord }">
-              <el-tag
-                size="small"
-                :type="row.confirmed ? 'success' : 'warning'"
-                effect="plain"
-              >
-                {{ row.confirmed ? '已确认' : '待确认' }}
-              </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column
-            label="创建时间"
-            width="160"
-            prop="createdAt"
-            align="right"
-          />
-        </el-table>
 
-        <div v-loading="loading" class="dashboard__records-mobile">
-          <button
-            v-for="record in parseRecords.slice(0, 3)"
-            :key="record.resultId"
-            type="button"
-            class="record-card"
-            @click="openRecord(record)"
-          >
-            <span class="record-card__title">{{ record.title }}</span>
-            <span class="record-card__meta">
-              <el-tag
-                size="small"
-                :type="record.confirmed ? 'success' : 'warning'"
-                effect="plain"
-              >
-                {{ record.confirmed ? '已确认' : '待确认' }}
-              </el-tag>
-              {{ record.createdAt }}
-            </span>
-          </button>
-          <p v-if="!loading && !parseRecords.length" class="dashboard__empty">
-            还没有解析记录，先去新建一个解析任务吧。
-          </p>
-        </div>
-      </AppPanel>
-
-      <AppPanel title="近期提醒" :icon="Bell">
-        <template #extra>
-          <el-tag v-if="urgentCount" size="small" type="danger" effect="plain">
-            紧急 {{ urgentCount }}
-          </el-tag>
-        </template>
-
-        <ul v-if="reminders.length" class="reminder-list">
-          <li
-            v-for="item in reminders"
-            :key="item.id"
-            class="reminder-list__item"
-          >
-            <button type="button" @click="openReminder(item)">
-              <span
-                class="reminder-list__bar"
-                :class="{ 'is-urgent': item.daysLeft <= 3 }"
-                aria-hidden="true"
-              />
-              <span class="reminder-list__body">
-                <span class="reminder-list__title">{{ item.title }}</span>
-                <span class="reminder-list__meta">
-                  {{ item.project }} · 截止 {{ formatDateTime(item.deadline) }}
+          <ul v-if="reminders.length" class="reminder-list">
+            <li
+              v-for="item in reminders"
+              :key="item.id"
+              class="reminder-list__item"
+            >
+              <button type="button" @click="openReminder(item)">
+                <span
+                  class="reminder-list__bar"
+                  :class="{ 'is-urgent': item.daysLeft <= 3 }"
+                  aria-hidden="true"
+                />
+                <span class="reminder-list__body">
+                  <span class="reminder-list__title">{{ item.title }}</span>
+                  <span class="reminder-list__meta">
+                    {{ item.project }} · 截止
+                    {{ formatDateTime(item.deadline) }}
+                  </span>
                 </span>
-              </span>
-              <el-tag
-                size="small"
-                effect="plain"
-                :type="item.daysLeft <= 3 ? 'danger' : 'warning'"
-              >
-                {{ item.daysLeft }} 天
-              </el-tag>
-            </button>
-          </li>
-        </ul>
-        <p v-else class="dashboard__empty">暂无临近截止的任务。</p>
-      </AppPanel>
+                <el-tag
+                  size="small"
+                  effect="plain"
+                  :type="item.daysLeft <= 3 ? 'danger' : 'warning'"
+                >
+                  {{ item.daysLeft }} 天
+                </el-tag>
+              </button>
+            </li>
+          </ul>
+          <p v-else class="dashboard__empty">暂无临近截止的任务。</p>
+        </AppPanel>
       </div>
     </template>
   </div>

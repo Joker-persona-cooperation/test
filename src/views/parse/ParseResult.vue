@@ -25,6 +25,7 @@ import {
 } from '@element-plus/icons-vue'
 import { useParseStore, type UpdateParseResultParams } from '@/stores/parse'
 import { useProjectStore, type Project } from '@/stores/project'
+import AiChatAssistant from './components/AiChatAssistant.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -229,6 +230,7 @@ onMounted(() => {
     </el-result>
 
     <template v-else-if="result">
+      <AiChatAssistant :parse-result-id="result.id" />
       <!-- 顶部信息条 -->
       <div class="detail-toolbar">
         <div class="detail-meta">
