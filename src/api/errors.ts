@@ -21,7 +21,7 @@ export class ApiError extends Error {
 }
 
 /**
- * 会话确实失效：refresh 失败，或刷新重试后仍然 401。
+ * 会话确实失效：refresh 明确返回 401/403，或刷新重试后仍然 401。
  *
  * 请求层只负责抛出它，不负责清本地态、不负责跳登录——那是 store 与 router
  * 的职责。跳转链路见 `setSessionExpiredHandler`。

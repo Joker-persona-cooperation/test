@@ -34,11 +34,16 @@ export function notifySessionExpired(error: SessionExpiredError) {
   return error
 }
 
-const request = axios.create({
+const clientConfig: AxiosRequestConfig = {
   baseURL: import.meta.env.VITE_API_BASE_URL ?? '',
   timeout: 15000,
   withCredentials: true,
-})
+}
+
+const request = axios.create(clientConfig)
+
+// refresh 使用独立实例，避免进入普通响应拦截器后重复触发会话失效通知。
+const refreshRequest = axios.create(clientConfig)
 
 // 请求拦截：注入 Bearer 与 CSRF 头
 request.interceptors.request.use((config) => {
@@ -58,22 +63,65 @@ request.interceptors.request.use((config) => {
 let refreshPromise: Promise<string> | null = null
 
 async function doRefresh(): Promise<string> {
-  // 用原始实例发起 refresh，避免再走响应拦截的 401 刷新逻辑造成循环
-  const res =
-    await request.post<
-      Envelope<{ access_token: string; expires_in_sec: number }>
-    >(REFRESH_URL)
-  const token = res.data?.data?.access_token
-  if (!token) throw new Error('刷新会话失败')
+  const csrf = getCsrfToken()
+  const response = await refreshRequest.post<
+    Envelope<{ access_token: string; expires_in_sec: number }>
+  >(REFRESH_URL, undefined, {
+    headers: csrf ? { 'X-CSRF-Token': csrf } : undefined,
+  })
+  const body = response.data
+  if (body.code !== 0) {
+    throw new ApiError(body.message || '刷新会话失败', {
+      status: response.status,
+      code: body.code,
+    })
+  }
+  const token = body.data?.access_token
+  if (!token) {
+    throw new ApiError('刷新会话失败', { status: response.status })
+  }
   setToken(token)
   return token
 }
 
+function normalizeRefreshError(error: unknown): ApiError {
+  if (error instanceof ApiError) {
+    if (error.status === 401 || error.status === 403) {
+      return new SessionExpiredError()
+    }
+    return error
+  }
+  if (axios.isAxiosError<Envelope<unknown>>(error)) {
+    const status = error.response?.status
+    if (status === 401 || status === 403) {
+      return new SessionExpiredError()
+    }
+    const message =
+      error.response?.data?.message || error.message || '刷新会话失败'
+    return new ApiError(message, {
+      status,
+      code: error.response?.data?.code,
+    })
+  }
+  return new ApiError(
+    error instanceof Error ? error.message : '刷新会话失败',
+  )
+}
+
 export function refreshAccessToken(): Promise<string> {
   if (refreshPromise) return refreshPromise
-  refreshPromise = doRefresh().finally(() => {
-    refreshPromise = null
-  })
+  refreshPromise = doRefresh()
+    .catch((error: unknown) => {
+      const normalized = normalizeRefreshError(error)
+      if (normalized instanceof SessionExpiredError) {
+        throw notifySessionExpired(normalized)
+      }
+      ElMessage.error(normalized.message)
+      throw normalized
+    })
+    .finally(() => {
+      refreshPromise = null
+    })
   return refreshPromise
 }
 
@@ -118,14 +166,9 @@ request.interceptors.response.use(
     if (status === 401 && original && !original._retried) {
       original._retried = true
 
-      try {
-        const newToken = await refreshAccessToken()
-        original.headers.Authorization = `Bearer ${newToken}`
-        return request(original)
-      } catch {
-        const expired = new SessionExpiredError()
-        return Promise.reject(notifySessionExpired(expired))
-      }
+      const newToken = await refreshAccessToken()
+      original.headers.Authorization = `Bearer ${newToken}`
+      return request(original)
     }
 
     const msg = error.response?.data?.message || error.message || '网络异常'

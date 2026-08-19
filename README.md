@@ -128,8 +128,8 @@ taskpilot-web/
 - 登录 / 注册（含 Redis 限流，后端负责）
 - Token 持久化（localStorage Bearer + HttpOnly Cookie 双轨）
 - 会话恢复（`bootstrapSession` 预热 + 路由守卫 await 去重）
-- 401 无感刷新（并发只刷一次，其余请求排队重试；`/auth/refresh` 与公开接口排除在刷新逻辑外）
-- 会话失效统一处理：请求层抛 `SessionExpiredError` → `main.ts` 注入的 handler 清会话 → 跳登录并保留 `redirect` 回跳
+- 401 无感刷新（并发请求共享同一个 refresh Promise，刷新成功后分别重试；`/auth/refresh` 与公开接口排除在刷新逻辑外）
+- 会话失效统一处理：refresh 明确返回 401/403 或刷新后重试仍为 401 时，请求层抛 `SessionExpiredError` → `main.ts` 注入的 handler 清会话 → 跳登录并保留 `redirect` 回跳；refresh 的网络错误与 5xx 不清除登录态
 - 退出登录、路由鉴权、CSRF 双 Cookie 回填
 
 ### 2. 工作台布局
