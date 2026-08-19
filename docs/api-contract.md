@@ -25,7 +25,7 @@
 - 普通受保护接口优先使用 `Authorization: Bearer <access_token>`；缺少 Bearer 时后端可回退 access Cookie。
 - `/auth/refresh`、`/auth/logout` 强制使用 refresh Cookie + `X-CSRF-Token`。
 - `PUT /users/me` 强制使用 access/refresh Cookie + CSRF，不接受仅 Bearer 的调用方式。
-- 受保护接口返回 `401` 时，`client.ts` 自动刷新并重试一次；刷新失败抛出 `SessionExpiredError`。
+- 受保护接口返回 `401` 时，`client.ts` 自动刷新并重试一次；refresh 明确返回 `401/403` 时抛出 `SessionExpiredError`，网络错误与 `5xx` 保留当前登录态并交由调用方重试。
 
 ### 0.3 常用状态码
 
