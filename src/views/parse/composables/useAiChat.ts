@@ -17,10 +17,14 @@ export function useAiChat(parseResultId: () => number | undefined) {
   const model = ref('')
   let controller: AbortController | null = null
 
+  // 上下文窗口：最多携带 16 条消息 = 最近 14 条历史 + 当前一问一答
+  const MAX_CONTEXT_MESSAGES = 16
+  const MAX_HISTORY_MESSAGES = MAX_CONTEXT_MESSAGES - 2
+
   const contextMessages = computed<AIChatContextMessage[]>(() => {
     const context = messages.value
       .filter((message) => message.contextEligible)
-      .slice(-16)
+      .slice(-MAX_HISTORY_MESSAGES)
       .map(({ role, content }) => ({ role, content }))
     let totalCharacters = context.reduce(
       (total, message) => total + Array.from(message.content).length,

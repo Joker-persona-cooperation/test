@@ -70,14 +70,14 @@ export const useParseStore = defineStore('parse', () => {
     return job
   }
 
-  async function fetchJob(jobId: number) {
-    const job = await getParseJob(jobId)
+  async function fetchJob(jobId: number, signal?: AbortSignal) {
+    const job = await getParseJob(jobId, signal)
     currentJob.value = job
     return job
   }
 
-  async function retryJob(jobId: number) {
-    const job = await retryParseJob(jobId)
+  async function retryJob(jobId: number, signal?: AbortSignal) {
+    const job = await retryParseJob(jobId, signal)
     currentJob.value = job
     return job
   }

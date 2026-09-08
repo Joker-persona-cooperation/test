@@ -26,6 +26,8 @@ const POLL_INTERVAL = 3000
 const MAX_POLLS = 100
 let pollCount = 0
 let timer: ReturnType<typeof setTimeout> | null = null
+let active = true
+let controller: AbortController | null = null
 
 const statusView = ref<ParseJobStatus | 'loading'>('loading')
 
@@ -72,11 +74,13 @@ function clearTimer() {
 }
 
 function scheduleNext() {
+  if (!active) return
   clearTimer()
   timer = setTimeout(poll, POLL_INTERVAL)
 }
 
 async function poll() {
+  if (!active) return
   if (pollCount >= MAX_POLLS) {
     errorMsg.value = '解析超时，请稍后在历史记录中查看结果'
     statusView.value = 'failed'
@@ -84,13 +88,17 @@ async function poll() {
     return
   }
   pollCount++
+  const requestController = new AbortController()
+  controller = requestController
   try {
-    const data = await parseStore.fetchJob(jobId)
+    const data = await parseStore.fetchJob(jobId, requestController.signal)
+    if (!active) return
     statusView.value = data.status
     loading.value = false
 
     if (data.status === 'success') {
       // 成功：跳结果详情页
+      if (!active) return
       router.replace(`/parse/${jobId}/result`)
       return
     }
@@ -101,6 +109,7 @@ async function poll() {
     // 仍在处理：继续轮询
     scheduleNext()
   } catch (e) {
+    if (!active) return
     // 单次轮询失败不立即终止，给一定容错后重试
     loading.value = false
     if (pollCount >= MAX_POLLS) {
@@ -110,6 +119,8 @@ async function poll() {
     } else {
       scheduleNext()
     }
+  } finally {
+    if (controller === requestController) controller = null
   }
 }
 
@@ -122,10 +133,14 @@ function goDashboard() {
 }
 
 async function handleRetry() {
+  if (!active) return
   retrying.value = true
   clearTimer()
+  const requestController = new AbortController()
+  controller = requestController
   try {
-    const retried = await parseStore.retryJob(jobId)
+    const retried = await parseStore.retryJob(jobId, requestController.signal)
+    if (!active) return
     pollCount = 0
     errorMsg.value = ''
     statusView.value = retried.status
@@ -137,7 +152,8 @@ async function handleRetry() {
     }
     scheduleNext()
   } finally {
-    retrying.value = false
+    if (controller === requestController) controller = null
+    if (active) retrying.value = false
   }
 }
 
@@ -150,7 +166,12 @@ onMounted(() => {
   poll()
 })
 
-onBeforeUnmount(clearTimer)
+onBeforeUnmount(() => {
+  active = false
+  clearTimer()
+  controller?.abort()
+  controller = null
+})
 </script>
 
 <template>
