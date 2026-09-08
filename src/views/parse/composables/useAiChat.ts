@@ -1,4 +1,4 @@
-import { computed, onBeforeUnmount, ref } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { streamAIChat, type AIChatContextMessage } from '@/api/aiChat'
 import { isRequestCanceled } from '@/api/errors'
 
@@ -110,11 +110,14 @@ export function useAiChat(parseResultId: () => number | undefined) {
       messages.value[assistantMessageIndex].state = 'complete'
       messages.value[assistantMessageIndex].contextEligible = true
     } catch (error) {
+      // 会话可能已随解析结果切换被清空，此时无需回写状态
+      const assistantMessage = messages.value[assistantMessageIndex]
+      if (!assistantMessage) return
       if (isRequestCanceled(error)) {
-        messages.value[assistantMessageIndex].state = 'stopped'
+        assistantMessage.state = 'stopped'
       } else {
-        messages.value[assistantMessageIndex].state = 'failed'
-        messages.value[assistantMessageIndex].error =
+        assistantMessage.state = 'failed'
+        assistantMessage.error =
           error instanceof Error ? error.message : 'AI 助手请求失败'
       }
     } finally {
@@ -143,6 +146,14 @@ export function useAiChat(parseResultId: () => number | undefined) {
     messages.value = []
     model.value = ''
   }
+
+  // 切换解析结果时终止进行中的请求并清空会话，
+  // 避免旧文档的对话消息与上下文串入新文档的会话。
+  watch(parseResultId, (next, prev) => {
+    if (next === prev) return
+    if (!messages.value.length && !generating.value) return
+    clear()
+  })
 
   onBeforeUnmount(clear)
 

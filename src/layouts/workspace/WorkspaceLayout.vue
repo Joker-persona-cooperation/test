@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import WorkspaceSidebar from './components/WorkspaceSidebar.vue'
 import WorkspaceTopbar from './components/WorkspaceTopbar.vue'
 import { useWorkspaceSidebar } from './composables/useWorkspaceSidebar'
 
 const { mobileNavOpen, closeMobileNav } = useWorkspaceSidebar()
+const route = useRoute()
 const router = useRouter()
 const contentEl = ref<HTMLElement>()
 
@@ -76,7 +77,9 @@ onBeforeUnmount(() => {
         <div class="workspace-layout__content-inner">
           <router-view v-slot="{ Component }">
             <transition name="fade-slide" mode="out-in">
-              <component :is="Component" />
+              <!-- 用 path 作 key：同名路由参数变化（如切换解析结果/项目）时强制重建页面，
+                   避免组件复用导致数据与 AI 会话停留在旧文档 -->
+              <component :is="Component" :key="route.path" />
             </transition>
           </router-view>
         </div>
