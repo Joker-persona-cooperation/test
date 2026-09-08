@@ -73,12 +73,20 @@ export function getLatestParseJob(
 }
 
 // 第三步：轮询解析任务状态
-export function getParseJob(jobId: number): Promise<ParseJob> {
-  return http.get<ParseJob>(`/parse-jobs/${jobId}`)
+export function getParseJob(
+  jobId: number,
+  signal?: AbortSignal,
+): Promise<ParseJob> {
+  return http.get<ParseJob>(`/parse-jobs/${jobId}`, { signal })
 }
 
-export function retryParseJob(jobId: number): Promise<ParseJob> {
-  return http.post<ParseJob>(`/parse-jobs/${jobId}/retry`)
+export function retryParseJob(
+  jobId: number,
+  signal?: AbortSignal,
+): Promise<ParseJob> {
+  return http.post<ParseJob>(`/parse-jobs/${jobId}/retry`, undefined, {
+    signal,
+  })
 }
 
 // 第三步/第四步：任务成功后获取解析结果
