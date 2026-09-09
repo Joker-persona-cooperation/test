@@ -20,6 +20,10 @@ import {
 } from '@/stores/dashboard'
 import { useGreeting } from '@/composables/useGreeting'
 import { formatDateTime } from '@/utils/date'
+import {
+  PARSE_RESULT_CONFIRM_STATUS_LABEL,
+  PARSE_RESULT_CONFIRM_STATUS_TAG,
+} from '@/constants/parseStatus'
 
 const authStore = useAuthStore()
 const dashboardStore = useDashboardStore()
@@ -162,10 +166,18 @@ function openReminder(reminder: DashboardReminder) {
               <template #default="{ row }: { row: DashboardParseRecord }">
                 <el-tag
                   size="small"
-                  :type="row.confirmed ? 'success' : 'warning'"
+                  :type="
+                    row.confirmed
+                      ? PARSE_RESULT_CONFIRM_STATUS_TAG.true
+                      : PARSE_RESULT_CONFIRM_STATUS_TAG.false
+                  "
                   effect="plain"
                 >
-                  {{ row.confirmed ? '已确认' : '待确认' }}
+                  {{
+                    row.confirmed
+                      ? PARSE_RESULT_CONFIRM_STATUS_LABEL.true
+                      : PARSE_RESULT_CONFIRM_STATUS_LABEL.false
+                  }}
                 </el-tag>
               </template>
             </el-table-column>
@@ -189,10 +201,18 @@ function openReminder(reminder: DashboardReminder) {
               <span class="record-card__meta">
                 <el-tag
                   size="small"
-                  :type="record.confirmed ? 'success' : 'warning'"
+                  :type="
+                    record.confirmed
+                      ? PARSE_RESULT_CONFIRM_STATUS_TAG.true
+                      : PARSE_RESULT_CONFIRM_STATUS_TAG.false
+                  "
                   effect="plain"
                 >
-                  {{ record.confirmed ? '已确认' : '待确认' }}
+                  {{
+                    record.confirmed
+                      ? PARSE_RESULT_CONFIRM_STATUS_LABEL.true
+                      : PARSE_RESULT_CONFIRM_STATUS_LABEL.false
+                  }}
                 </el-tag>
                 {{ record.createdAt }}
               </span>

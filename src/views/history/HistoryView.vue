@@ -9,7 +9,10 @@ import {
   type ParseResult,
   type Project,
 } from '@/stores/history'
-import { CONFIRM_LABEL, CONFIRM_TAG } from '@/constants/parseStatus'
+import {
+  PARSE_RESULT_CONFIRM_STATUS_LABEL,
+  PARSE_RESULT_CONFIRM_STATUS_TAG,
+} from '@/constants/parseStatus'
 import { PROJECT_STATUS_LABEL, PROJECT_STATUS_TAG } from '@/constants/project'
 import { formatDateTime } from '@/utils/date'
 
@@ -40,11 +43,15 @@ const currentPage = computed(() => {
 })
 
 function confirmLabel(confirmed: boolean) {
-  return confirmed ? CONFIRM_LABEL.true : CONFIRM_LABEL.false
+  return confirmed
+    ? PARSE_RESULT_CONFIRM_STATUS_LABEL.true
+    : PARSE_RESULT_CONFIRM_STATUS_LABEL.false
 }
 
 function confirmTag(confirmed: boolean): TagType {
-  return confirmed ? CONFIRM_TAG.true : CONFIRM_TAG.false
+  return confirmed
+    ? PARSE_RESULT_CONFIRM_STATUS_TAG.true
+    : PARSE_RESULT_CONFIRM_STATUS_TAG.false
 }
 
 async function loadActiveTab() {

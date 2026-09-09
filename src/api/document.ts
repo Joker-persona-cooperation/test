@@ -1,8 +1,9 @@
 // 文档相关接口，对接后端 /api/v1/documents
 import { http } from './client'
+import type { DocumentSource, DocumentStatus } from '@/constants/parseStatus'
 
 // 文档来源类型：纯文本 / PDF 文件
-export type DocumentSource = 'text' | 'pdf'
+export type { DocumentSource, DocumentStatus } from '@/constants/parseStatus'
 
 export interface TextDocumentParams {
   // 标题必填，后端限制最多 255 个 Unicode 字符
@@ -19,7 +20,7 @@ export interface Document {
   file_url?: string
   page_count?: number
   file_size?: number
-  status: 'uploaded' | 'ready' | 'failed'
+  status: DocumentStatus
   content?: string
   created_at: string
   updated_at: string

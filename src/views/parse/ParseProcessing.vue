@@ -10,6 +10,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Loading, CircleCheck, CircleClose } from '@element-plus/icons-vue'
 import { useParseStore, type ParseJobStatus } from '@/stores/parse'
+import { PARSE_JOB_STATUS_LABEL } from '@/constants/parseStatus'
 
 const route = useRoute()
 const router = useRouter()
@@ -32,18 +33,8 @@ let controller: AbortController | null = null
 const statusView = ref<ParseJobStatus | 'loading'>('loading')
 
 const statusText = computed(() => {
-  switch (statusView.value) {
-    case 'pending':
-      return '排队中'
-    case 'processing':
-      return '解析中'
-    case 'success':
-      return '解析完成'
-    case 'failed':
-      return '解析失败'
-    default:
-      return '加载中'
-  }
+  if (statusView.value === 'loading') return '加载中'
+  return PARSE_JOB_STATUS_LABEL[statusView.value]
 })
 
 const failureType = computed(() => {

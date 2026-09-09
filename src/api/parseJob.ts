@@ -1,8 +1,9 @@
 // 解析任务相关接口，对接后端 /api/v1/parse-jobs
 import { http } from './client'
+import type { ParseJobStatus } from '@/constants/parseStatus'
 
 // 解析任务状态：待处理 / 处理中 / 成功 / 失败
-export type ParseJobStatus = 'pending' | 'processing' | 'success' | 'failed'
+export type { ParseJobStatus } from '@/constants/parseStatus'
 
 export interface CreateParseJobParams {
   document_id: number

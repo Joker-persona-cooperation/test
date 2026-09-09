@@ -25,6 +25,15 @@ import {
 } from '@element-plus/icons-vue'
 import { useParseStore, type UpdateParseResultParams } from '@/stores/parse'
 import { useProjectStore, type Project } from '@/stores/project'
+import {
+  DOCUMENT_SOURCE_LABEL,
+  DOCUMENT_STATUS_LABEL,
+  DOCUMENT_STATUS_TAG,
+  PARSE_JOB_STATUS_LABEL,
+  PARSE_JOB_STATUS_TAG,
+  PARSE_RESULT_CONFIRM_STATUS_LABEL,
+  PARSE_RESULT_CONFIRM_STATUS_TAG,
+} from '@/constants/parseStatus'
 import AiChatAssistant from './components/AiChatAssistant.vue'
 
 const route = useRoute()
@@ -234,16 +243,41 @@ onMounted(() => {
       <!-- 顶部信息条 -->
       <div class="detail-toolbar">
         <div class="detail-meta">
-          <el-tag type="success" effect="plain" size="small">解析完成</el-tag>
+          <el-tag
+            :type="PARSE_JOB_STATUS_TAG.success"
+            effect="plain"
+            size="small"
+          >
+            {{ PARSE_JOB_STATUS_LABEL.success }}
+          </el-tag>
+          <el-tag
+            v-if="sourceDocument"
+            :type="DOCUMENT_STATUS_TAG[sourceDocument.status]"
+            effect="plain"
+            size="small"
+          >
+            {{ DOCUMENT_STATUS_LABEL[sourceDocument.status] }}
+          </el-tag>
+          <span v-if="sourceDocument">
+            来源：{{ DOCUMENT_SOURCE_LABEL[sourceDocument.source_type] }}
+          </span>
           <span v-if="result.ai_model">AI 模型：{{ result.ai_model }}</span>
           <span>版本 v{{ result.version }}</span>
         </div>
         <el-tag
-          :type="result.is_confirmed ? 'success' : 'warning'"
+          :type="
+            result.is_confirmed
+              ? PARSE_RESULT_CONFIRM_STATUS_TAG.true
+              : PARSE_RESULT_CONFIRM_STATUS_TAG.false
+          "
           effect="plain"
           size="small"
         >
-          {{ result.is_confirmed ? '已确认' : '未确认' }}
+          {{
+            result.is_confirmed
+              ? PARSE_RESULT_CONFIRM_STATUS_LABEL.true
+              : PARSE_RESULT_CONFIRM_STATUS_LABEL.false
+          }}
         </el-tag>
       </div>
 
